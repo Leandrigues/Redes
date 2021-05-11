@@ -39,36 +39,135 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define LISTENQ 1
 #define MAXDATASIZE 100
 #define MAXLINE 4096
 
-void printTopic(char* input) {
-    int i = 4;
-    int end = input[3] + i;
-    printf("TOPIC: ");
+char* getTopic(char *input, int length, int offset) {
+    int i = offset;
+    int j = 0;
+    int end = offset + length;
+    char *topicName = malloc(sizeof(char) * length);
     while (i != end) {
-        printf("%c", input[i]);
-        i++;
+        topicName[j++] = input[i++];
     }
-    printf("\n");
-    // for (int j = 0; j < 10; j++) {
-        // printf("Teste: %c\n", input[j+i]);
-    // }
-    // printf("próximos bytes depois do tópico:%d %x:\n",i, input[i]);
-    // printf("próximos bytes depois do tópico:%d %x:\n",i+1, input[i+1]);
+    return topicName;
+}
+
+FILE* writeInTopic(char *topic, char *message) {
+    FILE* f = fopen(topic, "a");
+    if (f == NULL) {
+        printf("Error creating from topic '%s'\n", topic);
+        exit(1);
+    }
+    printf("Sending '%s' to '%s'\n", message, topic);
+    fprintf(f, "%s\n", message);
+    fclose(f);
+    return f;
+}
+
+char* buildResponse(char * message, int messageLength, char* topic, int topicLength, int connfd) {
+    int totalLength = messageLength + topicLength + 5;
+    char response[totalLength];
+    response[0] = 0x30;
+    response[1] = topicLength + messageLength + 3;
+    response[2] = 0x00;
+    response[3] = topicLength;
+    int i;
+    int j;
+    // Write topic in response
+    for (i = 4; i < 4 + topicLength; i++) {
+        response[i] = topic[i-4];
+        printf("%x ", response[i-4]);
+    }
+    response[i] = 0x00;
+
+    for(j = i+1; j < i + 1 + messageLength; j++) {
+        response[j] = message[j-i-1];
+        printf("%x ", response[j]);
+
+    }
+    printf("DEBUG: %d\n", totalLength);
+    write(connfd,  response, totalLength);
 
 }
 
-void printMessage(char* input, int offset, int length) {
-    int i = offset;
-    printf("MESSAGE: ");
-    while (i <= offset + length) {
-        printf("%c", input[i]);
-        i++;
+void readTopic(char *topic, int topicLength, int connfd) {
+    FILE* f = fopen(topic, "r");
+    fseek(f, 0, SEEK_END);
+    int oldSize = ftell(f); 
+    int newSize;
+    int read;
+    int diff;
+    char* line;
+    size_t len = 0;
+
+    if (f == NULL) {
+        printf("Error reading from topic '%s'\n", topic);
+        exit(1);
     }
-    printf("\n");
+
+    while(1==1) {
+        fseek(f, 0, SEEK_END);
+        newSize = ftell(f);
+        if (newSize != oldSize) {
+            diff = newSize - oldSize;
+            oldSize = newSize;
+            fseek(f, -1 * diff, SEEK_END);
+            read = getline(&line, &len, f);
+            printf("Added line: %s\n", line);
+            buildResponse(line, diff, topic, topicLength, connfd);
+            // char response[9] = {0x30, 0x07, 0x00, 0x01, 0x61, 0x00, 0x61, 0x2f, 0x62};
+            // write(connfd,  response, 9);
+        }
+    }
+}
+
+char* getMessage(char *input, int offset, int length) {
+    int i = offset;
+    int j = 0;
+    char *message = malloc(sizeof(char) * length);
+
+    while (i != offset + length) {
+        message[j++] = input[i++];
+    }
+    return message;
+}
+
+void handleConnect(char *recvline, int connfd) {
+    printf("Received connection request\n");
+    char connAck[5] = {0x20, 0x03, 0x00, 0x00, 0x00};
+    write(connfd, connAck, 5);
+}
+
+void handlePublish(char *recvline) {
+    uint16_t topicLength = recvline[3];
+    int remainingLength = (int) recvline[1];
+    int messageLength = remainingLength - topicLength - 3;
+    char *topic = getTopic(recvline, topicLength, 4);
+    char *message = getMessage(recvline, topicLength + 5, messageLength);
+    FILE *f = writeInTopic(topic, message);
+
+    // printf("MESSAGE: %s\n", message);
+    // printf("MESSAGE LENGTH: %d\n", messageLength);
+    // printf("TOPIC: %s\n", topic);
+    // printf("Received publish request: %x\n", recvline[0]);
+    // printf("TOPIC LENGTH: %d\n", topicLength);
+    // printf("REMAINING LENGTH: %d\n", remainingLength);
+}
+
+void handleSubscribe(char *recvline, int connfd) {
+    // printf("recvline[4]: %x\n", recvline[3]);
+    char subAck[7] = {0x90, 0x05, recvline[3], 0x03, 0x00, 0x00, 0x00};
+    write(connfd,  subAck, 7);
+    uint16_t topicLength = recvline[6];
+    char* topic = getTopic(recvline, topicLength, 7);
+    printf("Received subscribe request to topic: %s\n", topic);
+    // char response[9] = {0x30, 7, 0x00, 0x01, 0x61, 0x00, 0x61, 0x2f, 0x62};
+    // write(connfd,  response, 9);
+    readTopic(topic, topicLength, connfd);
 }
 
 int main (int argc, char **argv) {
@@ -84,7 +183,7 @@ int main (int argc, char **argv) {
     char recvline[MAXLINE + 1];
     /* Armazena o tamanho da string lida do cliente */
     ssize_t n;
-   
+
     if (argc != 2) {
         fprintf(stderr,"Uso: %s <Porta>\n",argv[0]);
         fprintf(stderr,"Vai rodar um servidor de echo na porta <Porta> TCP\n");
@@ -132,7 +231,7 @@ int main (int argc, char **argv) {
 
     // printf("[Servidor no ar. Aguardando conexões na porta %s]\n",argv[1]);
     // printf("[Para finalizar, pressione CTRL+c ou rode um kill ou killall]\n");
-   
+
     /* O servidor no final das contas é um loop infinito de espera por
      * conexões e processamento de cada uma individualmente */
 	for (;;) {
@@ -181,34 +280,32 @@ int main (int argc, char **argv) {
             /* ========================================================= */
             /* TODO: É esta parte do código que terá que ser modificada
              * para que este servidor consiga interpretar comandos MQTT  */
-            unsigned int identifier;
+            uint8_t identifier;
+
             n=read(connfd, recvline, MAXLINE);
             identifier = recvline[0];
+
+            if ((fputs(recvline,stdout)) == EOF) {
+                perror("fputs :( \n");
+                exit(6);
+            }
+            // CONNECT request
             if (identifier == 16) {
-                printf("Received connection request: %x\n", recvline[0]);
-                char connect_ack[5] = {0x20, 0x03, 0x00, 0x00, 0x00};
-                write(connfd,  connect_ack, 5);
+                handleConnect(recvline, connfd);
             }
-
-            // if ((fputs(recvline,stdout)) == EOF) {
-                // perror("fputs :( \n");
-                // exit(6);
-            // }
 
             n=read(connfd, recvline, MAXLINE);
             identifier = recvline[0];
+            // printf("IDENTIFIER: %d\n", identifier);
+            // PUBLISH request
             if (identifier == 48) {
-                printf("Received publish request: %x\n", recvline[0]);
-                unsigned int topicLength = recvline[3];
-                int remainingLength = (int) recvline[1];
-                int messageLength = remainingLength - topicLength - 3;
-                printf("TOPIC LENGTH: %d\n", topicLength);
-                printTopic(recvline);
-                printf("REMAINING LENGTH: %d\n", remainingLength);
-                printf("MESSAGE LENGTH: %d\n", messageLength);
-                printMessage(recvline, topicLength + 4, messageLength);
+                handlePublish(recvline);
             }
 
+            // SUBSCRIBE request
+            if (identifier == 130) {
+                handleSubscribe(recvline, connfd);
+            }
 
 
             /* ========================================================= */
