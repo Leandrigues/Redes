@@ -48,6 +48,7 @@
 
 int clients[15];
 int clientsLength = 0;
+int DEBUG = 0;
 
 char* getTopic(char *input, int length, int offset) {
     int i = offset;
@@ -229,7 +230,6 @@ int main (int argc, char **argv) {
     /* Armazena linhas recebidas do cliente */
     char recvline[MAXLINE + 1];
     /* Armazena o tamanho da string lida do cliente */
-    ssize_t n;
 
     if (argc != 2) {
         fprintf(stderr,"Uso: %s <Porta>\n",argv[0]);
@@ -334,10 +334,8 @@ int main (int argc, char **argv) {
             /* TODO: É esta parte do código que terá que ser modificada
              * para que este servidor consiga interpretar comandos MQTT  */
             uint8_t identifier;
-            n=read(connfd, recvline, MAXLINE);
+            read(connfd, recvline, MAXLINE);
             identifier = recvline[0];
-
-            if (DEBUG) printf("n: %ld\n", n);
 
             if ((fputs(recvline,stdout)) == EOF) {
                 perror("fputs :( \n");
@@ -349,9 +347,8 @@ int main (int argc, char **argv) {
                 handleConnect(recvline, connfd);
             }
 
-            n=read(connfd, recvline, MAXLINE);
+            read(connfd, recvline, MAXLINE);
             identifier = recvline[0];
-            if (DEBUG) printf("n: %ld\n", n);
 
             // PUBLISH request
             if (identifier == 48) {

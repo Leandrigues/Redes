@@ -1,0 +1,38 @@
+Autor: Leandro Rodrigues da Silva
+nUSP: 10723944
+Data: 16/05/2021
+
+### Descompactação
+Para descompactar o programa, basta rodar 'tar -xzvf ep1-leandro_rodrigues_da_silva.tar.gz'.
+
+A descompactação irá gerar uma pasta ep1-leandro_rodrigues_da_silva/, contendo os arquivos
+necessários para a execução
+
+### Execução
+Para executar o programa, basta rodar 'make' na pasta raiz da aplicação.
+
+Um arquivo executável 'mqtt_server' será gerado. Para executá-lo, basta rodar
+'./mqtt_server <port>', onde 'port' é a porta desejada, ou simplesmente 'make run',
+para executá-lo na porta 1883
+
+### Teste
+Para testar o arquivo, pode-se executar alguns clientes do Mosquitto, como:
+
+$ mosquitto_sub -t "topico" -p <port>
+$ mosquitto_pub -t "topico" -m "mensagem" -p <port>
+
+### Depuração
+O programa possui uma variável chamada DEBUG, que está atribuída com 0.
+Ao alterar seu valor para 1, a execução do programa irá mostrar alguns prints
+para facilitar a depuração.
+
+### Pós-execução
+Para limpar os arquivos gerados, basta rodar 'make clean'
+
+### Estrutura de arquivos
+Estrutura:
+  - ep1-leandro_rodrigues_da_silva/
+    - ep1_leandro_rodrigues_da_silva.c
+    - Makefile
+    - slides.pdf
+    - LEIAME
