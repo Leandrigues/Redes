@@ -86,7 +86,6 @@ void endServer() {
         char disconnect[4] = {0xe0, 0x2, 0x00, 0x00};
         write(clients[i], disconnect, 4);
     }
-
     exit(0);
 }
 
@@ -97,7 +96,7 @@ void writeFileInFileList(char* topic) {
     fclose(fileList);
 }
 
-FILE* writeInTopic(char *topic, char *message) {
+void writeInTopic(char *topic, char *message) {
     writeFileInFileList(topic);
 
     FILE* f = fopen(topic, "a");
@@ -105,11 +104,9 @@ FILE* writeInTopic(char *topic, char *message) {
         printf("Error creating from topic '%s'\n", topic);
         exit(1);
     }
-    // printf("Sending '%s' to '%s'\n", message, topic);
+    if (DEBUG) printf("Sending '%s' to '%s'\n", message, topic);
     fprintf(f, "%s\n", message);
     fclose(f);
-
-    return f;
 }
 
 void buildResponse(char * message, int messageLength, char* topic, int topicLength, int connfd) {
@@ -174,9 +171,7 @@ void readTopic(char *topic, int topicLength, int connfd) {
             len = strlen(line);
             line[len-1] = '\0';
             buildResponse(line, diff, topic, topicLength, connfd);
-            // Example to send 'a/b' to topic 'a'
-            // char response[9] = {0x30, 0x07, 0x00, 0x01, 0x61, 0x00, 0x61, 0x2f, 0x62};
-            // write(connfd,  response, 9);
+            if (DEBUG) printf("Read line result: %d\n", read);
         }
     }
 }
@@ -193,21 +188,22 @@ char* getMessage(char *input, int offset, int length) {
 }
 
 void handleConnect(char *recvline, int connfd) {
-    // printf("Received connection request\n");
+    if (DEBUG) printf("Received connection request\n");
     char connAck[5] = {0x20, 0x03, 0x00, 0x00, 0x00};
     write(connfd, connAck, 5);
 }
 
 void handlePublish(char *recvline) {
     uint8_t topicLength = recvline[3];
-    uint8_t msb = recvline[4];
-    uint16_t result = (msb << 8)+topicLength;
-
     int remainingLength = (int) recvline[1];
     int messageLength = remainingLength - topicLength - 3;
     char *topic = getTopic(recvline, topicLength, 4);
     char *message = getMessage(recvline, topicLength + 5, messageLength);
-    FILE *f = writeInTopic(topic, message);
+
+    writeInTopic(topic, message);
+
+    if (DEBUG) printf("Publishing '%s' in '%s'\n", message, topic);
+
     free(message);
     free(topic);
 }
@@ -217,6 +213,7 @@ void handleSubscribe(char *recvline, int connfd) {
     write(connfd,  subAck, 7);
     uint16_t topicLength = recvline[6];
     char* topic = getTopic(recvline, topicLength, 7);
+    printf("Received subscribe request to topic '%s'\n", topic);
     readTopic(topic, topicLength, connfd);
 }
 
@@ -281,9 +278,10 @@ int main (int argc, char **argv) {
         perror("listen :(\n");
         exit(4);
     }
+    if (DEBUG) printf("Server pid: %d\n", getpid());
 
-    // printf("[Servidor no ar. Aguardando conexões na porta %s]\n",argv[1]);
-    // printf("[Para finalizar, pressione CTRL+c ou rode um kill ou killall]\n");
+    printf("[Servidor no ar. Aguardando conexões na porta %s]\n",argv[1]);
+    printf("[Para finalizar, pressione CTRL+c ou rode um kill ou killall]\n");
 
     /* O servidor no final das contas é um loop infinito de espera por
      * conexões e processamento de cada uma individualmente */
@@ -311,9 +309,10 @@ int main (int argc, char **argv) {
          * Se o retorno da função fork for zero, é porque está no
          * processo filho. */
         clients[clientsLength++] = connfd;
-        if ( (childpid = fork()) == 0) {
+        childpid = fork();
+        if (childpid == 0) {
             /**** PROCESSO FILHO ****/
-            // printf("[Uma conexão aberta]\n");
+            if (DEBUG) printf("[Uma conexão aberta]\n");
             /* Já que está no processo filho, não precisa mais do socket
              * listenfd. Só o processo pai precisa deste socket. */
             close(listenfd);
@@ -338,6 +337,8 @@ int main (int argc, char **argv) {
             n=read(connfd, recvline, MAXLINE);
             identifier = recvline[0];
 
+            if (DEBUG) printf("n: %ld\n", n);
+
             if ((fputs(recvline,stdout)) == EOF) {
                 perror("fputs :( \n");
                 exit(6);
@@ -350,6 +351,7 @@ int main (int argc, char **argv) {
 
             n=read(connfd, recvline, MAXLINE);
             identifier = recvline[0];
+            if (DEBUG) printf("n: %ld\n", n);
 
             // PUBLISH request
             if (identifier == 48) {
@@ -369,7 +371,7 @@ int main (int argc, char **argv) {
 
             /* Após ter feito toda a troca de informação com o cliente,
              * pode finalizar o processo filho */
-            // printf("[Uma conexão fechada]\n");
+            if (DEBUG) printf("[Uma conexão fechada]\n");
             exit(0);
         }
         else
