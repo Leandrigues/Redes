@@ -27,6 +27,7 @@
  * conexões na porta escolhida.
  */
 
+#include <stdint.h>
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -45,6 +46,9 @@
 #define MAXDATASIZE 100
 #define MAXLINE 4096
 
+int clients[15];
+int clientsLength = 0;
+
 char* getTopic(char *input, int length, int offset) {
     int i = offset;
     int j = 0;
@@ -56,47 +60,96 @@ char* getTopic(char *input, int length, int offset) {
     return topicName;
 }
 
+void endServer() {
+    // Verifica se algum tópico foi criado antes de tentar acessar o arquivo
+    if (access ("file_list", F_OK) != 0) {
+        exit(0);
+    }
+
+    FILE* fileList = fopen("file_list", "r");
+    char* fileName = NULL;
+    int read;
+    size_t len;
+
+    // Remove todos arquivos criados
+    while((read=getline(&fileName, &len, fileList)) != -1) {
+        int strLen = strlen(fileName);
+        // Remove o \n
+        fileName[strLen-1] = 0;
+        remove(fileName);
+    }
+
+    remove("file_list");
+    fclose(fileList);
+
+    for (int i = 0; i < clientsLength; i++) {
+        char disconnect[4] = {0xe0, 0x2, 0x00, 0x00};
+        write(clients[i], disconnect, 4);
+    }
+
+    exit(0);
+}
+
+void writeFileInFileList(char* topic) {
+    FILE* fileList = fopen("file_list", "a");
+    fputs(topic, fileList);
+    fputs("\n", fileList);
+    fclose(fileList);
+}
+
 FILE* writeInTopic(char *topic, char *message) {
+    writeFileInFileList(topic);
+
     FILE* f = fopen(topic, "a");
     if (f == NULL) {
         printf("Error creating from topic '%s'\n", topic);
         exit(1);
     }
-    printf("Sending '%s' to '%s'\n", message, topic);
+    // printf("Sending '%s' to '%s'\n", message, topic);
     fprintf(f, "%s\n", message);
     fclose(f);
+
     return f;
 }
 
-char* buildResponse(char * message, int messageLength, char* topic, int topicLength, int connfd) {
+void buildResponse(char * message, int messageLength, char* topic, int topicLength, int connfd) {
+    // 5 = Control packet + remaining length + MSB + LSB + properties
     int totalLength = messageLength + topicLength + 5;
     char response[totalLength];
     response[0] = 0x30;
+
+    // 3 = MSB + LSB + properties
     response[1] = topicLength + messageLength + 3;
     response[2] = 0x00;
     response[3] = topicLength;
     int i;
     int j;
-    // Write topic in response
+
+    // Escreve o nome do tópico na resposta
     for (i = 4; i < 4 + topicLength; i++) {
         response[i] = topic[i-4];
-        printf("%x ", response[i-4]);
     }
     response[i] = 0x00;
 
+    // Escreve o payload na resposta
     for(j = i+1; j < i + 1 + messageLength; j++) {
         response[j] = message[j-i-1];
-        printf("%x ", response[j]);
-
     }
-    printf("DEBUG: %d\n", totalLength);
-    write(connfd,  response, totalLength);
 
+    write(connfd,  response, totalLength);
 }
 
 void readTopic(char *topic, int topicLength, int connfd) {
-    FILE* f = fopen(topic, "r");
+    FILE* f;
+    if (access (topic, F_OK) != 0) {
+        f = fopen(topic, "w");
+        fputs("dummy string\n", f);
+        fclose(f);
+        writeFileInFileList(topic);
+    }
+    f = fopen(topic, "r");
     fseek(f, 0, SEEK_END);
+
     int oldSize = ftell(f); 
     int newSize;
     int read;
@@ -110,6 +163,7 @@ void readTopic(char *topic, int topicLength, int connfd) {
     }
 
     while(1==1) {
+        // Lê um arquivo a partir da última linha até ele mudar de tamanho
         fseek(f, 0, SEEK_END);
         newSize = ftell(f);
         if (newSize != oldSize) {
@@ -117,8 +171,10 @@ void readTopic(char *topic, int topicLength, int connfd) {
             oldSize = newSize;
             fseek(f, -1 * diff, SEEK_END);
             read = getline(&line, &len, f);
-            printf("Added line: %s\n", line);
+            len = strlen(line);
+            line[len-1] = '\0';
             buildResponse(line, diff, topic, topicLength, connfd);
+            // Example to send 'a/b' to topic 'a'
             // char response[9] = {0x30, 0x07, 0x00, 0x01, 0x61, 0x00, 0x61, 0x2f, 0x62};
             // write(connfd,  response, 9);
         }
@@ -137,36 +193,30 @@ char* getMessage(char *input, int offset, int length) {
 }
 
 void handleConnect(char *recvline, int connfd) {
-    printf("Received connection request\n");
+    // printf("Received connection request\n");
     char connAck[5] = {0x20, 0x03, 0x00, 0x00, 0x00};
     write(connfd, connAck, 5);
 }
 
 void handlePublish(char *recvline) {
-    uint16_t topicLength = recvline[3];
+    uint8_t topicLength = recvline[3];
+    uint8_t msb = recvline[4];
+    uint16_t result = (msb << 8)+topicLength;
+
     int remainingLength = (int) recvline[1];
     int messageLength = remainingLength - topicLength - 3;
     char *topic = getTopic(recvline, topicLength, 4);
     char *message = getMessage(recvline, topicLength + 5, messageLength);
     FILE *f = writeInTopic(topic, message);
-
-    // printf("MESSAGE: %s\n", message);
-    // printf("MESSAGE LENGTH: %d\n", messageLength);
-    // printf("TOPIC: %s\n", topic);
-    // printf("Received publish request: %x\n", recvline[0]);
-    // printf("TOPIC LENGTH: %d\n", topicLength);
-    // printf("REMAINING LENGTH: %d\n", remainingLength);
+    free(message);
+    free(topic);
 }
 
 void handleSubscribe(char *recvline, int connfd) {
-    // printf("recvline[4]: %x\n", recvline[3]);
     char subAck[7] = {0x90, 0x05, recvline[3], 0x03, 0x00, 0x00, 0x00};
     write(connfd,  subAck, 7);
     uint16_t topicLength = recvline[6];
     char* topic = getTopic(recvline, topicLength, 7);
-    printf("Received subscribe request to topic: %s\n", topic);
-    // char response[9] = {0x30, 7, 0x00, 0x01, 0x61, 0x00, 0x61, 0x2f, 0x62};
-    // write(connfd,  response, 9);
     readTopic(topic, topicLength, connfd);
 }
 
@@ -178,7 +228,7 @@ int main (int argc, char **argv) {
     struct sockaddr_in servaddr;
     /* Retorno da função fork para saber quem é o processo filho e
      * quem é o processo pai */
-    pid_t childpid;
+    pid_t childpid; 
     /* Armazena linhas recebidas do cliente */
     char recvline[MAXLINE + 1];
     /* Armazena o tamanho da string lida do cliente */
@@ -189,6 +239,9 @@ int main (int argc, char **argv) {
         fprintf(stderr,"Vai rodar um servidor de echo na porta <Porta> TCP\n");
         exit(1);
     }
+
+    // Ao pressionar CTRL+C, o arquivo intercepta e limpa os arquivos criados antes
+    signal(SIGINT, endServer);
 
     /* Criação de um socket. É como se fosse um descritor de arquivo.
      * É possível fazer operações como read, write e close. Neste caso o
@@ -257,6 +310,7 @@ int main (int argc, char **argv) {
          * que voltar no loop para continuar aceitando novas conexões.
          * Se o retorno da função fork for zero, é porque está no
          * processo filho. */
+        clients[clientsLength++] = connfd;
         if ( (childpid = fork()) == 0) {
             /**** PROCESSO FILHO ****/
             // printf("[Uma conexão aberta]\n");
@@ -281,7 +335,6 @@ int main (int argc, char **argv) {
             /* TODO: É esta parte do código que terá que ser modificada
              * para que este servidor consiga interpretar comandos MQTT  */
             uint8_t identifier;
-
             n=read(connfd, recvline, MAXLINE);
             identifier = recvline[0];
 
@@ -289,6 +342,7 @@ int main (int argc, char **argv) {
                 perror("fputs :( \n");
                 exit(6);
             }
+
             // CONNECT request
             if (identifier == 16) {
                 handleConnect(recvline, connfd);
@@ -296,7 +350,7 @@ int main (int argc, char **argv) {
 
             n=read(connfd, recvline, MAXLINE);
             identifier = recvline[0];
-            // printf("IDENTIFIER: %d\n", identifier);
+
             // PUBLISH request
             if (identifier == 48) {
                 handlePublish(recvline);
@@ -306,7 +360,6 @@ int main (int argc, char **argv) {
             if (identifier == 130) {
                 handleSubscribe(recvline, connfd);
             }
-
 
             /* ========================================================= */
             /* ========================================================= */

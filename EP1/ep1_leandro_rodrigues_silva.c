@@ -27,6 +27,7 @@
  * conexões na porta escolhida.
  */
 
+#include <stdint.h>
 #define _GNU_SOURCE
 #include <stdio.h>
 #include <stdlib.h>
@@ -39,10 +40,174 @@
 #include <arpa/inet.h>
 #include <time.h>
 #include <unistd.h>
+#include <signal.h>
 
 #define LISTENQ 1
 #define MAXDATASIZE 100
 #define MAXLINE 4096
+
+char* getTopic(char *input, int length, int offset) {
+    int i = offset;
+    int j = 0;
+    int end = offset + length;
+    char *topicName = malloc(sizeof(char) * length);
+    while (i != end) {
+        topicName[j++] = input[i++];
+    }
+    return topicName;
+}
+
+
+void clearFiles() {
+    // Verifica se algum tópico foi criado antes de tentar acessar o arquivo
+    if (access ("file_list", F_OK) != 0) {
+        exit(0);
+    }
+
+    FILE* fileList = fopen("file_list", "r");
+    char* fileName = NULL;
+    int read;
+    size_t len;
+
+    while((read=getline(&fileName, &len, fileList)) != -1) {
+        int strLen = strlen(fileName);
+        // Remove o \n
+        fileName[strLen-1] = 0;
+        remove(fileName);
+    }
+    remove("file_list");
+    fclose(fileList);
+    exit(0);
+}
+
+void writeFileInFileList(char* topic) {
+    FILE* fileList = fopen("file_list", "a");
+    fputs(topic, fileList);
+    fputs("\n", fileList);
+    fclose(fileList);
+}
+
+FILE* writeInTopic(char *topic, char *message) {
+    writeFileInFileList(topic);
+
+    FILE* f = fopen(topic, "a");
+    if (f == NULL) {
+        printf("Error creating from topic '%s'\n", topic);
+        exit(1);
+    }
+    printf("Sending '%s' to '%s'\n", message, topic);
+    fprintf(f, "%s\n", message);
+    fclose(f);
+
+    return f;
+}
+
+void buildResponse(char * message, int messageLength, char* topic, int topicLength, int connfd) {
+    // 5 = Control packet + remaining length + MSB + LSB + properties
+    int totalLength = messageLength + topicLength + 5;
+    char response[totalLength];
+    response[0] = 0x30;
+
+    // 3 = MSB + LSB + properties
+    response[1] = topicLength + messageLength + 3;
+    response[2] = 0x00;
+    response[3] = topicLength;
+    int i;
+    int j;
+
+    // Escreve o nome do tópico na resposta
+    for (i = 4; i < 4 + topicLength; i++) {
+        response[i] = topic[i-4];
+    }
+    response[i] = 0x00;
+
+    // Escreve o payload na resposta
+    for(j = i+1; j < i + 1 + messageLength; j++) {
+        response[j] = message[j-i-1];
+    }
+
+    write(connfd,  response, totalLength);
+}
+
+void readTopic(char *topic, int topicLength, int connfd) {
+    FILE* f;
+    if (access (topic, F_OK) != 0) {
+        f = fopen(topic, "w");
+        fputs("dummy string\n", f);
+        fclose(f);
+    }
+    f = fopen(topic, "r");
+
+    fseek(f, 0, SEEK_END);
+
+    int oldSize = ftell(f); 
+    int newSize;
+    int read;
+    int diff;
+    char* line;
+    size_t len = 0;
+
+    if (f == NULL) {
+        printf("Error reading from topic '%s'\n", topic);
+        exit(1);
+    }
+
+    while(1==1) {
+        // Lê um arquivo a partir da última linha até ele mudar de tamanho
+        fseek(f, 0, SEEK_END);
+        newSize = ftell(f);
+        if (newSize != oldSize) {
+            diff = newSize - oldSize;
+            oldSize = newSize;
+            fseek(f, -1 * diff, SEEK_END);
+            read = getline(&line, &len, f);
+            len = strlen(line);
+            line[len-1] = '\0';
+            buildResponse(line, diff, topic, topicLength, connfd);
+            // Example to send 'a/b' to topic 'a'
+            // char response[9] = {0x30, 0x07, 0x00, 0x01, 0x61, 0x00, 0x61, 0x2f, 0x62};
+            // write(connfd,  response, 9);
+        }
+    }
+}
+
+char* getMessage(char *input, int offset, int length) {
+    int i = offset;
+    int j = 0;
+    char *message = malloc(sizeof(char) * length);
+
+    while (i != offset + length) {
+        message[j++] = input[i++];
+    }
+    return message;
+}
+
+void handleConnect(char *recvline, int connfd) {
+    printf("Received connection request\n");
+    char connAck[5] = {0x20, 0x03, 0x00, 0x00, 0x00};
+    write(connfd, connAck, 5);
+}
+
+void handlePublish(char *recvline) {
+    uint8_t topicLength = recvline[3];
+    uint8_t msb = recvline[4];
+    uint16_t result = (msb << 8)+topicLength;
+
+    int remainingLength = (int) recvline[1];
+    int messageLength = remainingLength - topicLength - 3;
+    char *topic = getTopic(recvline, topicLength, 4);
+    char *message = getMessage(recvline, topicLength + 5, messageLength);
+    FILE *f = writeInTopic(topic, message);
+}
+
+void handleSubscribe(char *recvline, int connfd) {
+    char subAck[7] = {0x90, 0x05, recvline[3], 0x03, 0x00, 0x00, 0x00};
+    write(connfd,  subAck, 7);
+    uint16_t topicLength = recvline[6];
+    char* topic = getTopic(recvline, topicLength, 7);
+    printf("Received subscribe request to topic: %s\n", topic);
+    readTopic(topic, topicLength, connfd);
+}
 
 int main (int argc, char **argv) {
     /* Os sockets. Um que será o socket que vai escutar pelas conexões
@@ -57,13 +222,17 @@ int main (int argc, char **argv) {
     char recvline[MAXLINE + 1];
     /* Armazena o tamanho da string lida do cliente */
     ssize_t n;
-   
+
     if (argc != 2) {
         fprintf(stderr,"Uso: %s <Porta>\n",argv[0]);
         fprintf(stderr,"Vai rodar um servidor de echo na porta <Porta> TCP\n");
         exit(1);
     }
 
+    // Ao pressionar CTRL+C, o arquivo intercepta e limpa os arquivos criados antes
+    signal(SIGINT, clearFiles);
+    pid_t serverPid = getpid();
+    printf("Server pid: %d\n", serverPid);
     /* Criação de um socket. É como se fosse um descritor de arquivo.
      * É possível fazer operações como read, write e close. Neste caso o
      * socket criado é um socket IPv4 (por causa do AF_INET), que vai
@@ -103,9 +272,9 @@ int main (int argc, char **argv) {
         exit(4);
     }
 
-    printf("[Servidor no ar. Aguardando conexões na porta %s]\n",argv[1]);
-    printf("[Para finalizar, pressione CTRL+c ou rode um kill ou killall]\n");
-   
+    // printf("[Servidor no ar. Aguardando conexões na porta %s]\n",argv[1]);
+    // printf("[Para finalizar, pressione CTRL+c ou rode um kill ou killall]\n");
+
     /* O servidor no final das contas é um loop infinito de espera por
      * conexões e processamento de cada uma individualmente */
 	for (;;) {
@@ -120,7 +289,7 @@ int main (int argc, char **argv) {
             perror("accept :(\n");
             exit(5);
         }
-      
+
         /* Agora o servidor precisa tratar este cliente de forma
          * separada. Para isto é criado um processo filho usando a
          * função fork. O processo vai ser uma cópia deste. Depois da
@@ -133,11 +302,11 @@ int main (int argc, char **argv) {
          * processo filho. */
         if ( (childpid = fork()) == 0) {
             /**** PROCESSO FILHO ****/
-            printf("[Uma conexão aberta]\n");
+            // printf("[Uma conexão aberta]\n");
             /* Já que está no processo filho, não precisa mais do socket
              * listenfd. Só o processo pai precisa deste socket. */
             close(listenfd);
-         
+
             /* Agora pode ler do socket e escrever no socket. Isto tem
              * que ser feito em sincronia com o cliente. Não faz sentido
              * ler sem ter o que ler. Ou seja, neste caso está sendo
@@ -154,15 +323,33 @@ int main (int argc, char **argv) {
             /* ========================================================= */
             /* TODO: É esta parte do código que terá que ser modificada
              * para que este servidor consiga interpretar comandos MQTT  */
-            while ((n=read(connfd, recvline, MAXLINE)) > 0) {
-                recvline[n]=0;
-                printf("[Cliente conectado no processo filho %d enviou:] ",getpid());
-                if ((fputs(recvline,stdout)) == EOF) {
-                    perror("fputs :( \n");
-                    exit(6);
-                }
-                write(connfd, recvline, strlen(recvline));
+            uint8_t identifier;
+            n=read(connfd, recvline, MAXLINE);
+            identifier = recvline[0];
+
+            if ((fputs(recvline,stdout)) == EOF) {
+                perror("fputs :( \n");
+                exit(6);
             }
+
+            // CONNECT request
+            if (identifier == 16) {
+                handleConnect(recvline, connfd);
+            }
+
+            n=read(connfd, recvline, MAXLINE);
+            identifier = recvline[0];
+
+            // PUBLISH request
+            if (identifier == 48) {
+                handlePublish(recvline);
+            }
+
+            // SUBSCRIBE request
+            if (identifier == 130) {
+                handleSubscribe(recvline, connfd);
+            }
+
             /* ========================================================= */
             /* ========================================================= */
             /*                         EP1 FIM                           */
@@ -171,7 +358,7 @@ int main (int argc, char **argv) {
 
             /* Após ter feito toda a troca de informação com o cliente,
              * pode finalizar o processo filho */
-            printf("[Uma conexão fechada]\n");
+            // printf("[Uma conexão fechada]\n");
             exit(0);
         }
         else
