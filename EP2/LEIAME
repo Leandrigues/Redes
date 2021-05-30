@@ -3,6 +3,9 @@
 ## Participantes:
 
 Caio Fontes - 10692061
-Leandro Rodrigues - 
+Leandro Rodrigues - 10723944
 
 ## Implementação
+Execute `python3 start.py <port>`. Porta padrão = 3000
+
+Para testar, execute `telnet 127.0.0.1 <port>` e escreva algumas palavras no terminal.

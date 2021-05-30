@@ -1,3 +1,0 @@
-Run `python3 start.py <port>`. Default port = 3000
-
-To test, run `telnet 127.0.0.1 <port>` and type some text into the shell.
