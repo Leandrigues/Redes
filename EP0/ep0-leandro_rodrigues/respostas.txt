@@ -1,0 +1,25 @@
+1 - Escolhi dois segmentos, um deles pertencia ao Facebook (provavelmente por causa do WhatsApp Web aberto), e outro do TWitter.
+Descobri essas informações jogando os IPs correspondentes no IPInfo.io, que faz um reverse DNS e mostra o nome da organização por trás do IP.
+
+Origem:
+  Facebook/WhatsApp:
+    IP: 2a03:2880:f2ff:c0:face:b00c:0:167
+    MAC: 02:10:18:65:51:5c
+  Twitter:
+    IP: 104.244.42.194
+    MAC: 02:10:18:65:51:5c
+
+Destino:
+  Facebook/WhatsApp:
+    IP: 2804:14c:190:903d:7260:6ad6:3b4f:eb46
+    MAC: 94:de:80:64:8b:cd
+  Twitter:
+    IP: 192.168.0.16
+    MAC: 94:de:80:64:8b:cd
+
+Protocolo da camada de aplicação:
+  Facebook: https-over-tls (HTTPS)
+  Twitter Web: https-over-tls (HTTPS)
+
+2 - O tempo necessário para baixar o arquivo foi de 0.108478058 segundos. A sobrecarga da transferência utilizando HTTPS foi de ~96900%.
+A conta foi feita dividindo os 5819 bytes transferidos pelos 6 bytes do arquivo, e depois multiplicando por 100 para obter a porcentagem.

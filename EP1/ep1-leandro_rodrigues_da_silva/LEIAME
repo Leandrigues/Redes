@@ -9,7 +9,7 @@ A descompactação irá gerar uma pasta ep1-leandro_rodrigues_da_silva/, contend
 necessários para a execução
 
 ### Execução
-Para executar o programa, basta rodar 'make' na pasta raiz da aplicação.
+Para compilar o programa, basta rodar 'make' na pasta raiz da aplicação.
 
 Um arquivo executável 'mqtt_server' será gerado. Para executá-lo, basta rodar
 './mqtt_server <port>', onde 'port' é a porta desejada, ou simplesmente 'make run',

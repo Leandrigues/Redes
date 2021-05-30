@@ -214,7 +214,9 @@ void handleSubscribe(char *recvline, int connfd) {
     write(connfd,  subAck, 7);
     uint16_t topicLength = recvline[6];
     char* topic = getTopic(recvline, topicLength, 7);
-    printf("Received subscribe request to topic '%s'\n", topic);
+
+    if (DEBUG) printf("Received a subscribe request to topic '%s'\n", topic);
+
     readTopic(topic, topicLength, connfd);
 }
 
