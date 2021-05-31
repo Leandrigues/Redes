@@ -30,6 +30,7 @@ class Server:
         if not data:
           break
         conn.sendall(data)
+        print(f"Received: {data}")
     self.disconnect()
 
   def disconnect(self):
