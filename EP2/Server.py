@@ -16,6 +16,7 @@ class Server:
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._logged_users = []
         # force creation of user file
         open(Server.USERSF,"r").close()
 
@@ -54,12 +55,25 @@ class Server:
                 resp = self._login(msg[1:])
                 print(resp)
                 conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
+            elif msg[0] == "list":
+                resp = self._list()
+                print(resp)
+                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))     
 
         self.disconnect()
 
     def disconnect(self):
         print("Closing socket")
         self.socket.close()
+
+    def log_user(self, username):
+        self._logged_users.append(username)
+
+    def logout_user(self, username):
+        self._logged_users.pop(username)
+
+    def _list(self):
+        return ["listACK"] + [u for u in self._logged_users]
 
     def _login(self, args):
         if len(args) != 2:
@@ -73,6 +87,8 @@ class Server:
                 cur_usn, cur_pswd = u.split("\t")
                 if username == cur_usn:
                     if passwd == cur_pswd:
+                        # TODO: check if user is alreaddy logged in
+                        self.log_user(username)
                         return ["loginACK"]
                     else:
                         return ["loginERR", "Wrong Password"]
