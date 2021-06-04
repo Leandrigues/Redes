@@ -11,7 +11,6 @@ class Client:
 
         self.connect(port,ip)
         self.command_loop()
-        self.disconnect()
 
     def connect(self, port, ip):
         """Connect to server or to other client"""
@@ -31,18 +30,43 @@ class Client:
         """Reads User commands in a loop and sends then to connection."""
         while True:
             cmd = input(">").split(" ")
-            print(cmd)
+            print("cmd: ",cmd)
 
             if cmd[0] == "exit":
+                self.disconnect()
                 break
-            
             if cmd[0] == "adduser":
-                self.socket.sendmsg([
-                    bytes(cmd[0],"utf-8"),
-                    bytes(";","utf-8"),
-                    bytes(cmd[1],"utf-8"),
-                ])
+                self._send_adduser(cmd[1:])
 
+            elif cmd[0] == "login":
+                print(f"{cmd[0]} not implemented yet :(")
+
+            elif cmd[0] == "passwd":
+                print(f"{cmd[0]} not implemented yet :(")
+
+            elif cmd[0] == "begin":
+                print(f"{cmd[0]} not implemented yet :(")
+
+            elif cmd[0] == "send":
+                print(f"{cmd[0]} not implemented yet :(")
+
+            # Comandos que não tem argumentos
+            elif cmd[0] in ["leaders","list","delay","end","logout"]:
+                self.socket.sendmsg([bytes(cmd[0],"utf-8")])
             
-            for s in cmd:
-                self.socket.sendmsg([bytes(s,'utf-8')])
+            else:
+                print("Command not recognized.")
+
+    # Mensagens
+    def _send_adduser(self, args):
+        if len(args) < 2:
+            print("adduser usage:\n"
+                  "\tadduser <usuário> <senha>")
+            return
+        
+        self.socket.sendmsg([
+                bytes("adduser;","utf-8"),
+                bytes(f"{args[0]};","utf-8"),
+                bytes(f"{args[1]}","utf-8"),
+            ])
+        
