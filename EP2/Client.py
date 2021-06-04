@@ -40,7 +40,9 @@ class Client:
                 self._listen_adduserACK()
 
             elif cmd[0] == "login":
-                print(f"{cmd[0]} not implemented yet :(")
+                self._send_login(cmd[1:])
+                self._listen_loginACK()
+                # print(f"{cmd[0]} not implemented yet :(")
 
             elif cmd[0] == "passwd":
                 print(f"{cmd[0]} not implemented yet :(")
@@ -71,6 +73,26 @@ class Client:
                 bytes(f"{args[1]}","utf-8"),
             ])
     
+    def _send_login(self, args):
+        if len(args) < 2:
+            print("login usage:\n"
+                  "\tlogin <usuário> <senha>")
+            return
+        
+        self.socket.sendmsg([
+                bytes("login;","utf-8"),
+                bytes(f"{args[0]};","utf-8"),
+                bytes(f"{args[1]}","utf-8"),
+            ])
+
+    def _listen_loginACK(self):
+        resp = str(self.socket.recv(1024)).split(";")
+        print(resp)
+        # if resp[1] == 'OK':
+        #     print("Usuário adicionado")
+        # else:
+        #     print(f"adduser failed, reason: {resp[1]}")
+
     def _listen_adduserACK(self):
         resp = str(self.socket.recv(1024)).split(";")
 

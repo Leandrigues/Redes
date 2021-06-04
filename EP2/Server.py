@@ -48,8 +48,10 @@ class Server:
 
             if msg[0] == "adduser":
                 resp = self._adduser(msg[1:])
-
-                print(resp)
+                # print(resp)
+                conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
+            elif msg[0] == "login":
+                resp = self._login(msg[1:])
                 conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
 
         self.disconnect()
@@ -58,13 +60,31 @@ class Server:
         print("Closing socket")
         self.socket.close()
 
+    def _login(self, args):
+        if len(args) != 2:
+            print("login requires 2 arguments")
+            return ["loginERR", "Wrong Number of Arguments"]
+        
+        username,passwd = args
+        with open(Server.USERSF, "r") as handle:
+            users = handle.read().split("\n")
+            for u in users:
+                cur_usn, cur_pswd = u.split("\t")
+                if username == cur_usn:
+                    if passwd == cur_pswd:
+                        return ["loginACK"]
+                    else:
+                        return ["loginERR", "Wrong Password"]
+
+            return ["loginERR", "Username not found"]
+
     def _adduser(self, args):
         if len(args) != 2:
             print("adduser requires 2 arguments")
             return ["adduserACK", "ARGNUM"]
 
         new_username = args[0]
-        with open(Server.USERSF,"r") as handle:
+        with open(Server.USERSF, "r") as handle:
             # Lê todos os usuários para a memória pq fazer a inserção no
             # arquivo em si é muito trampo
             users = handle.read().split("\n")
