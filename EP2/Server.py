@@ -48,11 +48,12 @@ class Server:
 
             if msg[0] == "adduser":
                 resp = self._adduser(msg[1:])
-                # print(resp)
-                conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
+                print(resp)
+                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
             elif msg[0] == "login":
                 resp = self._login(msg[1:])
-                conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
+                print(resp)
+                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
 
         self.disconnect()
 
@@ -81,26 +82,23 @@ class Server:
     def _adduser(self, args):
         if len(args) != 2:
             print("adduser requires 2 arguments")
-            return ["adduserACK", "ARGNUM"]
+            return ["adduserERR", "Wrong Number of Arguments"]
 
         new_username = args[0]
         with open(Server.USERSF, "r") as handle:
             # Lê todos os usuários para a memória pq fazer a inserção no
             # arquivo em si é muito trampo
             users = handle.read().split("\n")
-            user_it = iter(users)
             
             i = 0
-            for cur_user in user_it:
-                if cur_user == '':
+            for u in users:
+                if u == '':
                     break
-                username = cur_user.split("\t")[0]
+                username = u.split("\t")[0]
                 if username > new_username:
                     break
                 if username == new_username:
-                    # TODO: retornar alguma indicação pro cliente
-                    print("Usuário já cadastrado.\n")
-                    return ["adduserACK", "USEREXISTS"]
+                    return ["adduserERR", "USEREXISTS"]
 
                 i = i+1
 
@@ -111,4 +109,4 @@ class Server:
         with open(Server.USERSF,'w+') as handle:
             handle.write('\n'.join(users))
         
-        return ["adduserACK", "OK"]
+        return ["adduserACK"]
