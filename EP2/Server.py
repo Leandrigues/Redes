@@ -47,7 +47,10 @@ class Server:
             print(f"Command: {msg[0]}")
 
             if msg[0] == "adduser":
-                self._adduser(msg[1:])
+                resp = self._adduser(msg[1:])
+
+                print(resp)
+                conn.sendmsg(bytes(s,"utf-8") for s in resp)
 
         self.disconnect()
 
@@ -58,7 +61,7 @@ class Server:
     def _adduser(self, args):
         if len(args) != 2:
             print("adduser requires 2 arguments")
-            return
+            return ["adduserACK","ARGNUM"]
 
         new_username = args[0]
         with open(Server.USERSF,"r") as handle:
@@ -77,7 +80,7 @@ class Server:
                 if username == new_username:
                     # TODO: retornar alguma indicação pro cliente
                     print("Usuário já cadastrado.\n")
-                    return
+                    return ["adduserACK","USEREXISTS"]
 
                 i = i+1
 
@@ -87,3 +90,5 @@ class Server:
         # Sobrescreve arquivo
         with open(Server.USERSF,'w+') as handle:
             handle.write('\n'.join(users))
+        
+        return ["adduserACK","OK"]

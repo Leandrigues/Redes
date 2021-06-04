@@ -37,6 +37,7 @@ class Client:
                 break
             if cmd[0] == "adduser":
                 self._send_adduser(cmd[1:])
+                self._listen_adduserACK()
 
             elif cmd[0] == "login":
                 print(f"{cmd[0]} not implemented yet :(")
@@ -69,4 +70,7 @@ class Client:
                 bytes(f"{args[0]};","utf-8"),
                 bytes(f"{args[1]}","utf-8"),
             ])
-        
+    
+    def _listen_adduserACK(self):
+        resp = self.socket.recv(1024)
+        print(resp)
