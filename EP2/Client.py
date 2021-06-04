@@ -72,5 +72,9 @@ class Client:
             ])
     
     def _listen_adduserACK(self):
-        resp = self.socket.recv(1024)
-        print(resp)
+        resp = str(self.socket.recv(1024)).split(";")
+
+        if resp[1] == 'OK':
+            print("Usuário adicionado")
+        else:
+            print(f"adduser failed, reason: {resp[1]}")

@@ -17,7 +17,7 @@ class Server:
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # force creation of user file
-        open(Server.USERSF,"w+").close()
+        open(Server.USERSF,"r").close()
 
     def connect(self, port):
         try:
@@ -41,7 +41,7 @@ class Server:
             data = conn.recv(1024)
             if not data:
                 break
-            conn.sendall(data)
+            # conn.sendall(data)
             print(f"Received: {data}")
             msg = data.decode("utf-8").split(";")
             print(f"Command: {msg[0]}")
@@ -50,7 +50,7 @@ class Server:
                 resp = self._adduser(msg[1:])
 
                 print(resp)
-                conn.sendmsg(bytes(s,"utf-8") for s in resp)
+                conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
 
         self.disconnect()
 
@@ -61,7 +61,7 @@ class Server:
     def _adduser(self, args):
         if len(args) != 2:
             print("adduser requires 2 arguments")
-            return ["adduserACK","ARGNUM"]
+            return ["adduserACK", "ARGNUM"]
 
         new_username = args[0]
         with open(Server.USERSF,"r") as handle:
@@ -80,7 +80,7 @@ class Server:
                 if username == new_username:
                     # TODO: retornar alguma indicação pro cliente
                     print("Usuário já cadastrado.\n")
-                    return ["adduserACK","USEREXISTS"]
+                    return ["adduserACK", "USEREXISTS"]
 
                 i = i+1
 
@@ -91,4 +91,4 @@ class Server:
         with open(Server.USERSF,'w+') as handle:
             handle.write('\n'.join(users))
         
-        return ["adduserACK","OK"]
+        return ["adduserACK", "OK"]
