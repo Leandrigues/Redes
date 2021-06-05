@@ -10,9 +10,9 @@ class Server:
     """
     # Sim, é horrível, mas n sei fazer cadastro ainda e quero começar nas
     # outras coisas.
-    
-    HOST = '127.0.0.1'
-    USERSF = 'users.txt'
+
+    HOST = "127.0.0.1"
+    USERSF = "users.txt"
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -46,9 +46,14 @@ class Server:
             msg = data.decode("utf-8").split(";")
             print(f"Command: {msg[0]}")
 
+            print("msg",msg)
             if msg[0] == "adduser":
                 resp = self._adduser(msg[1:])
+                print(resp)
+                conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
 
+            elif msg[0] == "passwd":
+                resp = self._passwd(msg[1], msg[2], msg[3])
                 print(resp)
                 conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
 
@@ -67,28 +72,57 @@ class Server:
         with open(Server.USERSF,"r") as handle:
             # Lê todos os usuários para a memória pq fazer a inserção no
             # arquivo em si é muito trampo
-            users = handle.read().split("\n")
-            user_it = iter(users)
-            
-            i = 0
-            for cur_user in user_it:
-                if cur_user == '':
-                    break
-                username = cur_user.split("\t")[0]
-                if username > new_username:
-                    break
-                if username == new_username:
-                    # TODO: retornar alguma indicação pro cliente
-                    print("Usuário já cadastrado.\n")
-                    return ["adduserACK", "USEREXISTS"]
+            users = handle.readlines()
 
-                i = i+1
+        user_names = []
+        for entry in users:
+            user_names.append(entry.split('\t')[0])
+
+        if new_username in user_names:
+            print("Usuário já cadastrado.\n")
+            return ["adduserACK", "USEREXISTS"]
+
+        users.append("\t".join(args) + '\n')
+        user_it = iter(users)
+
+            # for cur_user in user_it:
+            #     if cur_user == "":
+            #         break
+            #     username = cur_user.split("\t")[0]
+            #     if username > new_username:
+            #         break
+            #     if username == new_username:
+            #         # TODO: retornar alguma indicação pro cliente
+            #         print("Usuário já cadastrado.\n")
+            #         return ["adduserACK", "USEREXISTS"]
 
             # Update userlist
-            users = users[:i] + ['\t'.join(args)] + users[i+1:]
-
+            # users = users[:i] + ["\t".join(args)] + users[i+1:]
+            # print(users)
         # Sobrescreve arquivo
-        with open(Server.USERSF,'w+') as handle:
-            handle.write('\n'.join(users))
-        
+        with open(Server.USERSF,"w") as handle:
+            handle.writelines(sorted(users))
+
         return ["adduserACK", "OK"]
+
+    def _passwd(self, user, old_password, new_password):
+        if old_password == new_password:
+            return ["passwdACK", "SAMEPASSWORD"]
+
+        with open(Server.USERSF,"r") as file:
+            lines = file.readlines()
+
+        for index, line in enumerate(lines):
+            line_array = line.replace('\n', '').split("\t")
+
+            if line_array[0] == user:
+                if line_array[1] != old_password:
+                else:
+                    new_line = f"{user}\t{new_password}\n"
+                    lines[index] = new_line
+                    break
+
+        with open(Server.USERSF, "w") as file:
+            file.writelines(lines)
+
+        return ["passwdACK", "OK"]
