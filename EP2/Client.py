@@ -37,20 +37,38 @@ class Client:
                 self.disconnect()
                 break
             if cmd[0] == "adduser":
-                self._send_adduser(cmd[1:])
+                if self._send_adduser(cmd[1:]) is not None:
+                    continue
                 self._listen_adduserACK()
 
             elif cmd[0] == "login":
-                print(f"{cmd[0]} not implemented yet :(")
+                if self._send_login(cmd[1:]) is not None:
+                    continue
+                self._listen_loginACK()
+
             elif cmd[0] == "passwd":
                 self._send_passwd(cmd[1:])
             elif cmd[0] == "begin":
                 print(f"{cmd[0]} not implemented yet :(")
             elif cmd[0] == "send":
                 print(f"{cmd[0]} not implemented yet :(")
+
+            elif cmd[0] == "list":
+                self.socket.sendmsg([bytes(cmd[0],"utf-8")])
+                resp = self.socket.recv(1024).decode("utf-8")
+                
+                print("-"*30 + 
+                      "\nUsers currently logged in:\n" +
+                      "-"*30)
+
+                for u in resp.split(";")[1:]:
+                    print(f"\t{u}")
+
             # Comandos que não tem argumentos
             elif cmd[0] in ["leaders","list","delay","end","logout"]:
                 self.socket.sendmsg([bytes(cmd[0],"utf-8")])
+                resp = self.socket.recv(1024).decode("utf-8")
+                print(resp)
 
             else:
                 print("Command not recognized.")
@@ -68,10 +86,31 @@ class Client:
                 bytes(f"{args[1]}","utf-8"),
             ])
 
-    def _listen_adduserACK(self):
-        resp = str(self.socket.recv(1024)).split(";")
+    def _send_login(self, args):
+        if len(args) < 2:
+            print("login usage:\n"
+                  "\tlogin <usuário> <senha>")
+            return 1
+        
+        self.socket.sendmsg([
+                bytes("login;","utf-8"),
+                bytes(f"{args[0]};","utf-8"),
+                bytes(f"{args[1]}","utf-8"),
+            ])
 
-        if resp[1] == 'OK':
+
+
+    def _listen_loginACK(self):
+        resp = self.socket.recv(1024).decode("utf-8").split(";")
+        print(resp)
+        if resp[0] == "loginACK":
+            print("Login bem sucedido!")
+        else:
+            print(f"login failed, reason: {resp[1]}")
+
+    def _listen_adduserACK(self):
+        resp = self.socket.recv(1024).decode("utf-8").split(";")
+        if resp[0] == "adduserACK":
             print("Usuário adicionado")
         else:
             print(f"adduser failed, reason: {resp[1]}")

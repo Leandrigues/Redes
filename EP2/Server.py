@@ -16,6 +16,7 @@ class Server:
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self._logged_users = []
         # force creation of user file
         open(Server.USERSF,"r").close()
 
@@ -55,7 +56,15 @@ class Server:
             elif msg[0] == "passwd":
                 resp = self._passwd(msg[1], msg[2], msg[3])
                 print(resp)
-                conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
+                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
+            elif msg[0] == "login":
+                resp = self._login(msg[1:])
+                print(resp)
+                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
+            elif msg[0] == "list":
+                resp = self._list()
+                print(resp)
+                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))     
 
         self.disconnect()
 
@@ -63,51 +72,69 @@ class Server:
         print("Closing socket")
         self.socket.close()
 
+    def log_user(self, username):
+        self._logged_users.append(username)
+
+    def logout_user(self, username):
+        self._logged_users.pop(username)
+
+    def _list(self):
+        return ["listACK"] + [u for u in self._logged_users]
+
+    def _login(self, args):
+        if len(args) != 2:
+            print("login requires 2 arguments")
+            return ["loginERR", "Wrong Number of Arguments"]
+        
+        username,passwd = args
+        with open(Server.USERSF, "r") as handle:
+            users = handle.read().split("\n")
+            for u in users:
+                cur_usn, cur_pswd = u.split("\t")
+                if username == cur_usn:
+                    if passwd == cur_pswd:
+                        # TODO: check if user is alreaddy logged in
+                        self.log_user(username)
+                        return ["loginACK"]
+                    else:
+                        return ["loginERR", "Wrong Password"]
+
+            return ["loginERR", "Username not found"]
+
     def _adduser(self, args):
         if len(args) != 2:
             print("adduser requires 2 arguments")
-            return ["adduserACK", "ARGNUM"]
+            return ["adduserERR", "Wrong Number of Arguments"]
 
         new_username = args[0]
-        with open(Server.USERSF,"r") as handle:
+        with open(Server.USERSF, "r") as handle:
             # Lê todos os usuários para a memória pq fazer a inserção no
             # arquivo em si é muito trampo
-            users = handle.readlines()
 
+            users = handle.readlines()
+        
         user_names = []
         for entry in users:
             user_names.append(entry.split('\t')[0])
 
         if new_username in user_names:
             print("Usuário já cadastrado.\n")
-            return ["adduserACK", "USEREXISTS"]
+            return ["adduserERR", "USEREXISTS"]
 
         users.append("\t".join(args) + '\n')
         user_it = iter(users)
 
-            # for cur_user in user_it:
-            #     if cur_user == "":
-            #         break
-            #     username = cur_user.split("\t")[0]
-            #     if username > new_username:
-            #         break
-            #     if username == new_username:
-            #         # TODO: retornar alguma indicação pro cliente
-            #         print("Usuário já cadastrado.\n")
-            #         return ["adduserACK", "USEREXISTS"]
-
-            # Update userlist
-            # users = users[:i] + ["\t".join(args)] + users[i+1:]
-            # print(users)
+            
         # Sobrescreve arquivo
+
         with open(Server.USERSF,"w") as handle:
             handle.writelines(sorted(users))
 
-        return ["adduserACK", "OK"]
+        return ["adduserACK]
 
     def _passwd(self, user, old_password, new_password):
         if old_password == new_password:
-            return ["passwdACK", "SAMEPASSWORD"]
+            return ["passwdERR", "SAMEPASSWORD"]
 
         with open(Server.USERSF,"r") as file:
             lines = file.readlines()
@@ -125,4 +152,5 @@ class Server:
         with open(Server.USERSF, "w") as file:
             file.writelines(lines)
 
-        return ["passwdACK", "OK"]
+        return ["passwdACK"]
+
