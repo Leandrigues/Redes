@@ -2,9 +2,10 @@ import socket
 
 class Client:
     """Classe que representa um Cliente"""
-    
+
     def __init__(self):
         self.socket = None
+        self.user_name = 'leandro'
 
     def start(self,port,ip):
         """Connects to server and reads user input."""
@@ -21,7 +22,7 @@ class Client:
 
     def disconnect(self):
         print("Closing socket")
-        
+
         #Sends Empty message to indicate connection closing
         self.socket.sendmsg([bytes()])
         self.socket.close()
@@ -46,11 +47,9 @@ class Client:
                 self._listen_loginACK()
 
             elif cmd[0] == "passwd":
-                print(f"{cmd[0]} not implemented yet :(")
-
+                self._send_passwd(cmd[1:])
             elif cmd[0] == "begin":
                 print(f"{cmd[0]} not implemented yet :(")
-
             elif cmd[0] == "send":
                 print(f"{cmd[0]} not implemented yet :(")
 
@@ -70,6 +69,7 @@ class Client:
                 self.socket.sendmsg([bytes(cmd[0],"utf-8")])
                 resp = self.socket.recv(1024).decode("utf-8")
                 print(resp)
+
             else:
                 print("Command not recognized.")
 
@@ -79,13 +79,13 @@ class Client:
             print("adduser usage:\n"
                   "\tadduser <usuário> <senha>")
             return
-        
+
         self.socket.sendmsg([
                 bytes("adduser;","utf-8"),
                 bytes(f"{args[0]};","utf-8"),
                 bytes(f"{args[1]}","utf-8"),
             ])
-    
+
     def _send_login(self, args):
         if len(args) < 2:
             print("login usage:\n"
@@ -97,6 +97,8 @@ class Client:
                 bytes(f"{args[0]};","utf-8"),
                 bytes(f"{args[1]}","utf-8"),
             ])
+
+
 
     def _listen_loginACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
@@ -112,3 +114,18 @@ class Client:
             print("Usuário adicionado")
         else:
             print(f"adduser failed, reason: {resp[1]}")
+
+    def _send_passwd(self, args):
+        if len(args) < 2:
+            print("passwd <senha antiga> <senha nova>")
+            return
+        if self.user_name is None:
+            print("Você precisa estar logado para alterar a senha")
+            return
+
+        self.socket.sendmsg([
+            bytes("passwd;", "utf-8"),
+            bytes(f"{self.user_name};", "utf-8"),
+            bytes(f"{args[0]};", "utf-8"),
+            bytes(f"{args[1]}", "utf-8"),
+        ])
