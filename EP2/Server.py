@@ -1,16 +1,14 @@
 import socket
 from random import randint
+import threading
 
 class Server:
     """
     Usuários já cadastrados ficam armazenados no arquivo users.txt, no
-    formato (tab-separated): 
+    formato (tab-separated):
 
     USERNAME    PASSWORD
     """
-    # Sim, é horrível, mas n sei fazer cadastro ainda e quero começar nas
-    # outras coisas.
-
     HOST = "127.0.0.1"
     USERSF = "users.txt"
 
@@ -20,34 +18,37 @@ class Server:
         # force creation of user file
         open(Server.USERSF,"r").close()
 
-    def connect(self, port):
+    def listen(self, port):
+        self._bind_port(port)
+
+        while True:
+            self.socket.listen()
+            conn, addr = self.socket.accept()
+            client_thread = threading.Thread(target=self.read_commands, args=(conn, addr))
+            client_thread.start()
+
+        self.disconnect()
+
+    def _bind_port(self, port):
         try:
             self.socket.bind((Server.HOST, port))
             print("Listening in port", port)
         except OSError:
-            # Por enquanto, só pra evitar o bug da porta ficar ocupada
-            # depois de finalizar o processo, tô adicionando um random
-            # pra pegar uma porta desocupada
             port += randint(1, 99)
             self.socket.bind((Server.HOST, port))
             print("Listening in port", port)
 
-        self.socket.listen()
-
-        conn, addr = self.socket.accept()
+    def _read_commands(self, conn, addr):
         while True:
             print("Received connection from", addr)
-            # ct = client_thread(conn) # Pra no futuro usar threads
-            # ct.run()
             data = conn.recv(1024)
             if not data:
                 break
-            # conn.sendall(data)
+
             print(f"Received: {data}")
             msg = data.decode("utf-8").split(";")
             print(f"Command: {msg[0]}")
 
-            print("msg",msg)
             if msg[0] == "adduser":
                 resp = self._adduser(msg[1:])
                 print(resp)
@@ -65,8 +66,6 @@ class Server:
                 resp = self._list()
                 print(resp)
                 conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
-
-        self.disconnect()
 
     def disconnect(self):
         print("Closing socket")
