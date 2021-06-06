@@ -47,7 +47,10 @@ class Client:
                 self._listen_loginACK()
 
             elif cmd[0] == "passwd":
-                self._send_passwd(cmd[1:])
+                if self._send_passwd(cmd[1:]) is not None:
+                    continue
+                self._listen_passwdACK()
+
             elif cmd[0] == "begin":
                 print(f"{cmd[0]} not implemented yet :(")
             elif cmd[0] == "send":
@@ -56,7 +59,7 @@ class Client:
             elif cmd[0] == "list":
                 self.socket.sendmsg([bytes(cmd[0],"utf-8")])
                 resp = self.socket.recv(1024).decode("utf-8")
-                
+
                 print("-"*30 + 
                       "\nUsers currently logged in:\n" +
                       "-"*30)
@@ -91,20 +94,34 @@ class Client:
             print("login usage:\n"
                   "\tlogin <usuário> <senha>")
             return 1
-        
+
         self.socket.sendmsg([
                 bytes("login;","utf-8"),
                 bytes(f"{args[0]};","utf-8"),
                 bytes(f"{args[1]}","utf-8"),
             ])
 
+    def _send_passwd(self, args):
+        if len(args) < 2:
+            print("passwd <senha antiga> <senha nova>")
+            return
+        if self.user_name is None:
+            print("Você precisa estar logado para alterar a senha.")
+            return
 
+        self.socket.sendmsg([
+            bytes("passwd;", "utf-8"),
+            bytes(f"{self.user_name};", "utf-8"),
+            bytes(f"{args[0]};", "utf-8"),
+            bytes(f"{args[1]}", "utf-8"),
+        ])
 
     def _listen_loginACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
         print(resp)
         if resp[0] == "loginACK":
             print("Login bem sucedido!")
+            self.user_name = resp[1]
         else:
             print(f"login failed, reason: {resp[1]}")
 
@@ -115,17 +132,10 @@ class Client:
         else:
             print(f"adduser failed, reason: {resp[1]}")
 
-    def _send_passwd(self, args):
-        if len(args) < 2:
-            print("passwd <senha antiga> <senha nova>")
-            return
-        if self.user_name is None:
-            print("Você precisa estar logado para alterar a senha")
-            return
-
-        self.socket.sendmsg([
-            bytes("passwd;", "utf-8"),
-            bytes(f"{self.user_name};", "utf-8"),
-            bytes(f"{args[0]};", "utf-8"),
-            bytes(f"{args[1]}", "utf-8"),
-        ])
+    def _listen_passwdACK(self):
+        resp = self.socket.recv(1024).decode("utf-8").split(";")
+        print("Listen passack:", resp)
+        if resp[0] == "passwdACK":
+            print("Senha alterada com sucesso.")
+        else:
+            print("Falha ao alterar senha. Motivo:", resp[1])

@@ -64,7 +64,7 @@ class Server:
             elif msg[0] == "list":
                 resp = self._list()
                 print(resp)
-                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))     
+                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
 
         self.disconnect()
 
@@ -85,7 +85,7 @@ class Server:
         if len(args) != 2:
             print("login requires 2 arguments")
             return ["loginERR", "Wrong Number of Arguments"]
-        
+
         username,passwd = args
         with open(Server.USERSF, "r") as handle:
             users = handle.read().split("\n")
@@ -95,7 +95,7 @@ class Server:
                     if passwd == cur_pswd:
                         # TODO: check if user is alreaddy logged in
                         self.log_user(username)
-                        return ["loginACK"]
+                        return ["loginACK", username]
                     else:
                         return ["loginERR", "Wrong Password"]
 
@@ -112,7 +112,7 @@ class Server:
             # arquivo em si é muito trampo
 
             users = handle.readlines()
-        
+
         user_names = []
         for entry in users:
             user_names.append(entry.split('\t')[0])
@@ -124,13 +124,12 @@ class Server:
         users.append("\t".join(args) + '\n')
         user_it = iter(users)
 
-            
-        # Sobrescreve arquivo
 
+        # Sobrescreve arquivo
         with open(Server.USERSF,"w") as handle:
             handle.writelines(sorted(users))
 
-        return ["adduserACK]
+        return ["adduserACK"]
 
     def _passwd(self, user, old_password, new_password):
         if old_password == new_password:
@@ -144,6 +143,7 @@ class Server:
 
             if line_array[0] == user:
                 if line_array[1] != old_password:
+                    return ["passwdERR", "WRONGPASSWORD"]
                 else:
                     new_line = f"{user}\t{new_password}\n"
                     lines[index] = new_line
