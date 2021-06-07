@@ -51,21 +51,18 @@ class Server:
 
             if msg[0] == "adduser":
                 resp = self._adduser(msg[1:])
-                print(resp)
-                conn.sendmsg(bytes(f"{s};","utf-8") for s in resp)
-
             elif msg[0] == "passwd":
-                resp = self._passwd(msg[1], msg[2], msg[3])
-                print(resp)
-                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
+                resp = self._passwd(msg[1:])
             elif msg[0] == "login":
                 resp = self._login(msg[1:])
-                print(resp)
-                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
             elif msg[0] == "list":
                 resp = self._list()
-                print(resp)
-                conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
+            elif msg[0] == "begin":
+                resp = self._begin(msg[1:])
+            else:
+                resp = ['Comando Não Reconhecido']
+            print(resp)
+            conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
 
     def disconnect(self):
         print("Closing socket")
@@ -76,6 +73,9 @@ class Server:
 
     def logout_user(self, username):
         self._logged_users.pop(username)
+
+    def _begin(self, args):
+        pass
 
     def _list(self):
         return ["listACK"] + [u for u in self._logged_users]
@@ -130,7 +130,13 @@ class Server:
 
         return ["adduserACK"]
 
-    def _passwd(self, user, old_password, new_password):
+    def _passwd(self, args):
+        if len(args) != 3:
+            print("passwd requires 3 arguments")
+            return ["passwdERR", "Wrong Number of Arguments"]
+
+        user, old_password, new_password = msg
+
         if old_password == new_password:
             return ["passwdERR", "SAMEPASSWORD"]
 
