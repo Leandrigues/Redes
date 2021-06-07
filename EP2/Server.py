@@ -12,7 +12,7 @@ class Server:
     Cada conexão cria uma nova thread, que irá lidar com as necessidades desse cliente.
 
     Usuários logados ficam na lista self._logged_users, que guarda tuplas:
-        (username, socket)
+        (username, address)
     """
     HOST = "127.0.0.1"
     USERSF = "users.txt"
@@ -50,6 +50,7 @@ class Server:
 
         # adds connection reference
         self.thread_data.conn = conn
+        print(f"conn: {conn}")
         self.thread_data.addr = addr
 
         # main loop
@@ -76,17 +77,23 @@ class Server:
             else:
                 resp = ['Comando Não Reconhecido']
             print(resp)
-            conn.sendmsg(bytes(s,"utf-8") for s in ";".join(resp))
+            conn.sendmsg([bytes(";".join(resp),"utf-8")])
 
     def disconnect(self):
         print("Closing socket")
         self.socket.close()
 
     def log_user(self, username):
+        print(f"Login in user: {username}")
         self._logged_users.append((username, self.thread_data.conn))
 
     def logout_user(self, username):
+        print(f"Login out user: {username}")
         self._logged_users.pop((username, self.thread_data.conn))
+
+    def invite_user(self, i_con):
+        print(f"inviting user in connection: {i_con}")
+        i_con.sendmsg([bytes(f"invite;{self.thread_data.username}","utf-8")])
 
     def _begin(self, args):
         """Invites another user and waits for response."""
@@ -96,8 +103,9 @@ class Server:
         
         invited_user = args[0]
 
-        for username, _  in self._logged_users:
+        for username, us_addr  in self._logged_users:
             if invited_user == username:
+                self.invite_user(us_addr)
                 return ["beginACK"]
         
         return ["beginERR", "Invited user not connected"]
