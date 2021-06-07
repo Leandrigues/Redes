@@ -17,6 +17,8 @@ class Client:
         """Connect to server or to other client"""
         try:
             self.socket = socket.create_connection((ip,port))
+            # self.socket.setblocking(False)
+            # self.socket.setti(False)
         except:
             print(f"Could not connect to address {ip}:{port}")
 
@@ -30,7 +32,11 @@ class Client:
     def command_loop(self):
         """Reads User commands in a loop and sends then to connection."""
         while True:
+            self._listen_invite()
             cmd = input(">").split(" ")
+
+            if not cmd: # Empty string
+                continue
             print("cmd: ",cmd)
 
             if cmd[0] == "exit":
@@ -78,6 +84,20 @@ class Client:
 
             else:
                 print("Command not recognized.")
+
+    # Convites
+    def _listen_invite(self):
+        self.socket.settimeout(0.1)
+        try:
+            inv = self.socket.recv(1024)
+        except socket.timeout as e:
+            inv = None
+
+        if inv is not None:
+            #TODO: add validation here
+            user = inv.decode("utf-8").split(";")[1]
+            print(f"Received an invitation from: {user}")
+            
 
     # Mensagens
     def _send_begin(self, args):
