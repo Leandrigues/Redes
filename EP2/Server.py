@@ -12,11 +12,12 @@ class Server:
     Cada conexão cria uma nova thread, que irá lidar com as necessidades desse cliente.
 
     Usuários logados ficam na lista Server.logged_users, que guarda tuplas:
-        (username, address)
+        (username, socket)
     """
     HOST = "127.0.0.1"
     USERSF = "users.txt"
     logged_users = []
+    thread_usernames = {}
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -74,10 +75,25 @@ class Server:
                 resp = self._list()
             elif msg[0] == "begin":
                 resp = self._begin(msg[1:])
+            elif msg[0] == "answer":
+                resp = self._answer(msg[1:])
             else:
                 resp = ['Comando Não Reconhecido']
             print(resp)
             conn.sendmsg([bytes(";".join(resp),"utf-8")])
+
+
+    # util methods:
+
+    def get_uname(self):
+        """Returns current thread associated Username or None"""
+        return Server.thread_usernames.get(threading.get_ident)
+
+    def set_uname(self, username):
+        """Sets username associated with current thread"""
+        Server.thread_usernames[threading.get_ident] = username
+
+    # Message related methods
 
     def disconnect(self):
         print("Closing socket")
@@ -91,9 +107,31 @@ class Server:
         print(f"Login out user: {username}")
         Server.logged_users.pop((username, self.thread_data.conn))
 
-    def invite_user(self, i_con):
-        print(f"inviting user in connection: {i_con}")
-        i_con.sendmsg([bytes(f"invite;{self.thread_data.username}","utf-8")])
+    def invite_user(self, u_socket):
+        print(f"inviting user in connection: {u_socket}")
+        u_socket.sendmsg([bytes(f"invite;{self.get_uname()}","utf-8")])
+
+    def answer_user(self, u_socket, accept):
+        print(f"Answering user in connection: {u_socket}")
+        u_socket.sendmsg([
+            bytes(f"answer;{self.get_uname()};{accept}","utf-8")])
+
+    def _answer(self, args):
+        """Relays answer to game invitation"""
+        if len(args) != 2:
+            print("answer requires 2 arguments")
+            return ["answerERR", "Wrong Number of Arguments"]
+        
+        ans_user, accept = args
+        
+        for username, us_socket in Server.logged_users:
+            if ans_user == username:
+                self.answer_user(us_socket, accept)
+                return ["answerACK"]
+
+        return ["answerERR", "User not connected, can't respond"]
+        
+        
 
     def _begin(self, args):
         """Invites another user and waits for response."""
@@ -103,9 +141,9 @@ class Server:
         
         invited_user = args[0]
 
-        for username, us_addr  in Server.logged_users:
+        for username, us_socket in Server.logged_users:
             if invited_user == username:
-                self.invite_user(us_addr)
+                self.invite_user(us_socket)
                 return ["beginACK"]
         
         return ["beginERR", "Invited user not connected"]
@@ -131,7 +169,7 @@ class Server:
                         self.log_user(username)
 
                         #TODO: check if this connection is already logged in
-                        self.thread_data.username = username
+                        self.set_uname(username)
                         return ["loginACK", username]
                     else:
                         return ["loginERR", "Wrong Password"]

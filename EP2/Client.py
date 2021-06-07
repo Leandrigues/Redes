@@ -32,7 +32,7 @@ class Client:
     def command_loop(self):
         """Reads User commands in a loop and sends then to connection."""
         while True:
-            self._listen_invite()
+            self._listen_messages()
             cmd = input(">").split(" ")
 
             if not cmd: # Empty string
@@ -86,18 +86,43 @@ class Client:
                 print("Command not recognized.")
 
     # Convites
-    def _listen_invite(self):
+    def _listen_messages(self):
+        """Listen for unprompted server messages."""
         self.socket.settimeout(0.1)
-        try:
-            inv = self.socket.recv(1024)
-        except socket.timeout as e:
-            inv = None
 
-        if inv is not None:
-            #TODO: add validation here
-            user = inv.decode("utf-8").split(";")[1]
-            print(f"Received an invitation from: {user}")
-            
+        try:
+            msg = self.socket.recv(1024)
+        except socket.timeout as e:
+            msg = None
+
+        self.socket.settimeout(socket.getdefaulttimeout())
+
+        if msg is not None:
+            msg = msg.decode("utf-8").split(";")
+
+            if msg[0] == "invite":
+                #TODO: add validation here 
+                user = msg[1]
+                print(f"Received an invitation from: {user}")
+                accept = input("Aceitar?\n[S/n]: ")
+                if accept == "S":
+                    print(f"Iniciando conexão com {user}")
+                    self.socket.sendmsg([
+                        bytes(f"answer;{user};True", "utf-8")
+                    ])
+                    # Se preparar para conexão
+                else:
+                    print(f"Recusando convite de {user}")
+                    self.socket.sendmsg([
+                        bytes(f"answer;{user};False", "utf-8")
+                    ])
+
+            elif msg[0] == "answer":
+                user,accept = msg[1:3]
+                if accept == "True":
+                    print(f"User {user} has accepted your invite for a game :D")
+                else:
+                    print(f"User {user} has declined your invite for a game =(")
 
     # Mensagens
     def _send_begin(self, args):
