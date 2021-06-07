@@ -17,11 +17,12 @@ class Server:
     HOST = "127.0.0.1"
     USERSF = "users.txt"
     logged_users = []
-    thread_usernames = {}
+    t_usernames = {}
+    t_sockets = {}
+    t_addresses = {}
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        self.thread_data = None
         # force creation of user file
         open(Server.USERSF,"r").close()
 
@@ -47,12 +48,11 @@ class Server:
 
     def _read_commands(self, conn, addr):
         # local connection data
-        self.thread_data = threading.local()
 
         # adds connection reference
-        self.thread_data.conn = conn
+        self.set_socket(conn)
         print(f"conn: {conn}")
-        self.thread_data.addr = addr
+        self.set_addr(addr)
 
         # main loop
         while True:
@@ -87,11 +87,28 @@ class Server:
 
     def get_uname(self):
         """Returns current thread associated Username or None"""
-        return Server.thread_usernames.get(threading.get_ident)
+        return Server.t_usernames.get(threading.get_ident)
 
     def set_uname(self, username):
         """Sets username associated with current thread"""
-        Server.thread_usernames[threading.get_ident] = username
+        Server.t_usernames[threading.get_ident] = username
+
+    def get_socket(self):
+        """Returns current thread associated socket or None"""
+        return Server.t_sockets.get(threading.get_ident)
+
+    def set_socket(self, socket):
+        """Sets socket associated with current thread"""
+        Server.t_sockets[threading.get_ident] = socket
+
+    def get_addr(self):
+        """Returns current thread associated socket or None"""
+        return Server.t_addresses.get(threading.get_ident)
+
+    def set_addr(self, addr):
+        """Sets socket associated with current thread"""
+        Server.t_addresses[threading.get_ident] = addr
+
 
     # Message related methods
 
@@ -101,11 +118,11 @@ class Server:
 
     def log_user(self, username):
         print(f"Login in user: {username}")
-        Server.logged_users.append((username, self.thread_data.conn))
+        Server.logged_users.append((username, self.get_socket()))
 
     def logout_user(self, username):
         print(f"Login out user: {username}")
-        Server.logged_users.pop((username, self.thread_data.conn))
+        Server.logged_users.pop((username, self.get_socket()))
 
     def invite_user(self, u_socket):
         print(f"inviting user in connection: {u_socket}")
@@ -131,8 +148,6 @@ class Server:
 
         return ["answerERR", "User not connected, can't respond"]
         
-        
-
     def _begin(self, args):
         """Invites another user and waits for response."""
         if len(args) != 1:
