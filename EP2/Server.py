@@ -10,6 +10,9 @@ class Server:
     USERNAME    PASSWORD
 
     Cada conexão cria uma nova thread, que irá lidar com as necessidades desse cliente.
+
+    Usuários logados ficam na lista self._logged_users, que guarda tuplas:
+        (username, socket)
     """
     HOST = "127.0.0.1"
     USERSF = "users.txt"
@@ -45,6 +48,11 @@ class Server:
         # local connection data
         self.thread_data = threading.local()
 
+        # adds connection reference
+        self.thread_data.conn = conn
+        self.thread_data.addr = addr
+
+        # main loop
         while True:
             print("Received connection from", addr)
             data = conn.recv(1024)
@@ -75,10 +83,10 @@ class Server:
         self.socket.close()
 
     def log_user(self, username):
-        self._logged_users.append(username)
+        self._logged_users.append((username, self.thread_data.conn))
 
     def logout_user(self, username):
-        self._logged_users.pop(username)
+        self._logged_users.pop((username, self.thread_data.conn))
 
     def _begin(self, args):
         """Invites another user and waits for response."""
@@ -88,14 +96,16 @@ class Server:
         
         invited_user = args[0]
 
-        if invited_user not in self._logged_users:
-            return ["beginERR", "Invited user not connected"]
+        for username, _  in self._logged_users:
+            if invited_user == username:
+                return ["beginACK"]
+        
+        return ["beginERR", "Invited user not connected"]
         
         #invite_successfull = self.invite_user(invited_user)
-        return ["beginACK"]
 
     def _list(self):
-        return ["listACK"] + [u for u in self._logged_users]
+        return ["listACK"] + [u for u,_ in self._logged_users]
 
     def _login(self, args):
         if len(args) != 2:
