@@ -8,12 +8,15 @@ class Server:
     formato (tab-separated):
 
     USERNAME    PASSWORD
+
+    Cada conexão cria uma nova thread, que irá lidar com as necessidades desse cliente.
     """
     HOST = "127.0.0.1"
     USERSF = "users.txt"
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        self.thread_data = None
         self._logged_users = []
         # force creation of user file
         open(Server.USERSF,"r").close()
@@ -39,6 +42,9 @@ class Server:
             print("Listening in port", port)
 
     def _read_commands(self, conn, addr):
+        # local connection data
+        self.thread_data = threading.local()
+
         while True:
             print("Received connection from", addr)
             data = conn.recv(1024)
@@ -75,7 +81,18 @@ class Server:
         self._logged_users.pop(username)
 
     def _begin(self, args):
-        pass
+        """Invites another user and waits for response."""
+        if len(args) != 1:
+            print("begin requires 1 argument")
+            return ["beginERR", "Wrong Number of Arguments"]
+        
+        invited_user = args[0]
+
+        if invited_user not in self._logged_users::
+            return ["beginERR", "Invited user not connected"]
+        
+        #invite_successfull = self.invite_user(invited_user)
+        return ["beginACK"]
 
     def _list(self):
         return ["listACK"] + [u for u in self._logged_users]
@@ -94,6 +111,9 @@ class Server:
                     if passwd == cur_pswd:
                         # TODO: check if user is alreaddy logged in
                         self.log_user(username)
+
+                        #TODO: check if this connection is already logged in
+                        self.thread_data.username = username
                         return ["loginACK", username]
                     else:
                         return ["loginERR", "Wrong Password"]
