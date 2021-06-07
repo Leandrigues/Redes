@@ -27,7 +27,7 @@ class Server:
         while True:
             self.socket.listen()
             conn, addr = self.socket.accept()
-            client_thread = threading.Thread(target=self.read_commands, args=(conn, addr))
+            client_thread = threading.Thread(target=self._read_commands, args=(conn, addr))
             client_thread.start()
 
         self.disconnect()
@@ -88,7 +88,7 @@ class Server:
         
         invited_user = args[0]
 
-        if invited_user not in self._logged_users::
+        if invited_user not in self._logged_users:
             return ["beginERR", "Invited user not connected"]
         
         #invite_successfull = self.invite_user(invited_user)

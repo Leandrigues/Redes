@@ -52,7 +52,10 @@ class Client:
                 self._listen_passwdACK()
 
             elif cmd[0] == "begin":
-                print(f"{cmd[0]} not implemented yet :(")
+                if self._send_begin(cmd[1:]) is not None:
+                    continue
+                self._listen_beginACK()
+
             elif cmd[0] == "send":
                 print(f"{cmd[0]} not implemented yet :(")
 
@@ -77,6 +80,17 @@ class Client:
                 print("Command not recognized.")
 
     # Mensagens
+    def _send_begin(self, args):
+        if len(args) < 1:
+            print("begin usage:\n"
+                  "\tbegin <usuário>")
+            return
+
+        self.socket.sendmsg([
+                bytes("begin;","utf-8"),
+                bytes(f"{args[0]}","utf-8"),
+            ])
+
     def _send_adduser(self, args):
         if len(args) < 2:
             print("adduser usage:\n"
@@ -115,6 +129,16 @@ class Client:
             bytes(f"{args[0]};", "utf-8"),
             bytes(f"{args[1]}", "utf-8"),
         ])
+
+    # Respostas
+    def _listen_beginACK(self):
+        resp = self.socket.recv(1024).decode("utf-8").split(";")
+        print(resp)
+        if resp[0] == "beginACK":
+            print("Begin bem sucedido!")
+            # self.user_name = resp[1]
+        else:
+            print(f"begin failed, reason: {resp[1]}")
 
     def _listen_loginACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
