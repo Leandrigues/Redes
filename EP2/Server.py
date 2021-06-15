@@ -13,6 +13,8 @@ class Server:
 
     Usuários logados ficam na lista Server.logged_users, que guarda tuplas:
         (username, socket)
+
+    t_usernames, t_sockets, t_addresses são dicionários indexados pelo thread id da conexão.
     """
     HOST = "127.0.0.1"
     USERSF = "users.txt"
@@ -63,7 +65,7 @@ class Server:
 
             print(f"Received: {data}")
             msg = data.decode("utf-8").split(";")
-            print(f"Command: {msg[0]}")
+            print(f"Command: {msg}")
 
             if msg[0] == "adduser":
                 resp = self._adduser(msg[1:])
@@ -142,7 +144,9 @@ class Server:
         ans_user, accept = args
         
         for username, us_socket in Server.logged_users:
+            print(f"{username}: {us_socket}")
             if ans_user == username:
+                print("Found user")
                 self.answer_user(us_socket, accept)
                 return ["answerACK"]
 

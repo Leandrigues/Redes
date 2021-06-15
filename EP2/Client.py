@@ -97,6 +97,7 @@ class Client:
 
         self.socket.settimeout(socket.getdefaulttimeout())
 
+        print(f"Message: {msg}")
         if msg is not None:
             msg = msg.decode("utf-8").split(";")
 
@@ -117,7 +118,7 @@ class Client:
                         bytes(f"answer;{user};False", "utf-8")
                     ])
 
-            elif msg[0] == "answer":
+            elif msg[0] == "answerACK":
                 user,accept = msg[1:3]
                 if accept == "True":
                     print(f"User {user} has accepted your invite for a game :D")
