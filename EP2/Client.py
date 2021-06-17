@@ -1,24 +1,31 @@
 import socket
+from random import randint
 
 class Client:
     """Classe que representa um Cliente"""
+    MYADDR="127.0.0.1"
+    MATCHTIMEOUT=5
 
     def __init__(self):
         self.socket = None
-        self.user_name = 'leandro'
+        self.user_name = ''
 
     def start(self,port,ip):
         """Connects to server and reads user input."""
 
-        self.connect(port,ip)
-        self.command_loop()
+        self.socket = self.connect(port,ip)
+        self.server_command_loop()
 
-    def connect(self, port, ip):
+    def connect(self, port, ip, show_err = True) -> socket.socket:
         """Connect to server or to other client"""
         try:
-            self.socket = socket.create_connection((ip,port))
-        except:
+            soc = socket.create_connection((ip,port))
+        except Exception as e:
+            print(f"Exception: {e}")
             print(f"Could not connect to address {ip}:{port}")
+            soc = None
+
+        return soc
 
     def disconnect(self):
         print("Closing socket")
@@ -27,10 +34,14 @@ class Client:
         self.socket.sendmsg([bytes()])
         self.socket.close()
 
-    def command_loop(self):
+    def server_command_loop(self):
         """Reads User commands in a loop and sends then to connection."""
         while True:
+            self._listen_messages()
             cmd = input(">").split(" ")
+
+            if not cmd: # Empty string
+                continue
             print("cmd: ",cmd)
 
             if cmd[0] == "exit":
@@ -52,7 +63,10 @@ class Client:
                 self._listen_passwdACK()
 
             elif cmd[0] == "begin":
-                print(f"{cmd[0]} not implemented yet :(")
+                if self._send_begin(cmd[1:]) is not None:
+                    continue
+                self._listen_beginACK()
+
             elif cmd[0] == "send":
                 print(f"{cmd[0]} not implemented yet :(")
 
@@ -76,7 +90,104 @@ class Client:
             else:
                 print("Command not recognized.")
 
+    def game_command_loop(self, soc, first_move=True):
+        print("Jogo não foi implementado ainda X)")
+        if first_move:
+            soc.sendmsg([bytes("Fala colega","utf-8")])
+        else:
+            msg = soc.recv(1024)
+            print("Recebi: ", msg)
+
+    def _bind_port(self, soc : socket.socket, port=3001) -> int:
+        try:
+            soc.bind((Client.MYADDR, port))
+            print("Listening in port", port)
+        except OSError:
+            port += randint(1, 99)
+            soc.bind((Client.MYADDR, port))
+            print("Listening in port", port)
+
+        return port
+
+
+    def _get_match_socket(self):
+        new_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        new_port = self._bind_port(new_socket)
+        return new_socket, new_port
+
+
+    # Convites
+    def _listen_messages(self):
+        """Listen for unprompted server messages."""
+        self.socket.settimeout(0.1)
+
+        try:
+            msg = self.socket.recv(1024)
+        except socket.timeout as e:
+            msg = None
+
+        self.socket.settimeout(socket.getdefaulttimeout())
+
+        print(f"Message: {msg}")
+        if msg is not None:
+            msg = msg.decode("utf-8").split(";")
+
+            if msg[0] == "invite":
+                #TODO: add validation here 
+                user = msg[1]
+                print(f"Received an invitation from: {user}")
+                accept = input("Aceitar?\n[S/n]: ")
+                if accept == "S":
+                    print(f"Iniciando conexão com {user}")
+                    self._match_socket, port = self._get_match_socket()
+
+                    self.socket.sendmsg([
+                        bytes(f"answer;{user};True;{port}", "utf-8")
+                    ])
+                    print("Resposta enviada; Esperando conexão.")
+                    self._match_socket.settimeout(Client.MATCHTIMEOUT)
+                    try:
+                        self._match_socket.listen()
+                        conn, addr = self._match_socket.accept()
+                    except socket.timeout as e:
+                        conn = addr = None
+
+                    if conn is None:
+                        print("Conexão não foi recebida =(")
+                    else:
+                        self.game_command_loop(conn)
+
+                    # Se preparar para conexão
+                else:
+                    print(f"Recusando convite de {user}")
+                    self.socket.sendmsg([
+                        bytes(f"answer;{user};False", "utf-8")
+                    ])
+
+            elif msg[0] == "answer":
+                user,accept = msg[1:3]
+                if accept == "True":
+                    print(f"User {user} has accepted your invite for a game :D")
+                    print(msg)
+                    addr,port = msg[3:5]
+                    print(f"Connecting to user in {addr}:{port}")
+                    conn = self.connect(port,addr,False)
+                    self.game_command_loop(conn, False)
+                else:
+                    print(f"User {user} has declined your invite for a game =(")
     # Mensagens
+    def _send_begin(self, args):
+        if len(args) < 1:
+            print("begin usage:\n"
+                  "\tbegin <usuário>")
+            return
+
+        self.socket.sendmsg([
+                bytes("begin;","utf-8"),
+                bytes(f"{args[0]};","utf-8"),
+                bytes(f"{self.user_name}","utf-8"),
+            ])
+
     def _send_adduser(self, args):
         if len(args) < 2:
             print("adduser usage:\n"
@@ -115,6 +226,16 @@ class Client:
             bytes(f"{args[0]};", "utf-8"),
             bytes(f"{args[1]}", "utf-8"),
         ])
+
+    # Respostas
+    def _listen_beginACK(self):
+        resp = self.socket.recv(1024).decode("utf-8").split(";")
+        print(resp)
+        if resp[0] == "beginACK":
+            print("Begin bem sucedido!")
+            # self.user_name = resp[1]
+        else:
+            print(f"begin failed, reason: {resp[1]}")
 
     def _listen_loginACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
