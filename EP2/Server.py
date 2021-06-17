@@ -107,11 +107,11 @@ class Server:
         Server.t_sockets[threading.get_ident()] = socket
 
     def get_addr(self):
-        """Returns current thread associated socket or None"""
+        """Returns current address associated socket or None"""
         return Server.t_addresses.get(threading.get_ident())
 
     def set_addr(self, addr):
-        """Sets socket associated with current thread"""
+        """Sets address associated with current thread"""
         Server.t_addresses[threading.get_ident()] = addr
 
 
@@ -133,21 +133,26 @@ class Server:
         print(f"inviting user in connection: {u_socket}")
         u_socket.sendmsg([bytes(f"invite;{sender}","utf-8")])
 
-    def answer_user(self, u_socket, accept):
+    def answer_user(self, u_socket, accept, sender_port=None):
         print(f"Answering user in connection: {u_socket}")
-        u_socket.sendmsg([
-            bytes(f"answer;{self.get_uname()};{accept}","utf-8")])
+
+        answer_string = f"answer;{self.get_uname()};{accept}"
+        if accept: 
+            answer_string += f";{self.get_addr()[0]};{sender_port}"
+
+        u_socket.sendmsg([bytes(answer_string,"utf-8")])
 
     def _answer(self, args):
         """Relays answer to game invitation"""
-        if len(args) != 2:
-            print("answer requires 2 arguments")
+        if len(args) < 2:
+            print("answer requires at least 2 arguments")
             return ["answerERR", "Wrong Number of Arguments"]
 
-        user_to_answer, accept = args
+        user_to_answer, accept = args[:2]
+        sender_port = args[2] if len(args) > 2 else None
         print("USERNAMES:", Server.logged_users)
         if user_to_answer in Server.logged_users:
-            self.answer_user(Server.logged_users[user_to_answer], accept)
+            self.answer_user(Server.logged_users[user_to_answer], accept, sender_port)
             return ["answerACK"]
 
         return ["answerERR", "User not connected, can't respond"]

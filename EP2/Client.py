@@ -2,6 +2,8 @@ import socket
 
 class Client:
     """Classe que representa um Cliente"""
+    MYADDR="127.0.0.1"
+    MATCHTIMEOUT=5
 
     def __init__(self):
         self.socket = None
@@ -10,17 +12,19 @@ class Client:
     def start(self,port,ip):
         """Connects to server and reads user input."""
 
-        self.connect(port,ip)
-        self.command_loop()
+        self.socket = self.connect(port,ip)
+        self.server_command_loop()
 
-    def connect(self, port, ip):
+    def connect(self, port, ip, show_err = True) -> socket.socket:
         """Connect to server or to other client"""
         try:
-            self.socket = socket.create_connection((ip,port))
-            # self.socket.setblocking(False)
-            # self.socket.setti(False)
-        except:
+            soc = socket.create_connection((ip,port))
+        except Exception as e:
+            print(f"Exception: {e}")
             print(f"Could not connect to address {ip}:{port}")
+            soc = None
+
+        return soc
 
     def disconnect(self):
         print("Closing socket")
@@ -29,7 +33,7 @@ class Client:
         self.socket.sendmsg([bytes()])
         self.socket.close()
 
-    def command_loop(self):
+    def server_command_loop(self):
         """Reads User commands in a loop and sends then to connection."""
         while True:
             self._listen_messages()
@@ -85,6 +89,27 @@ class Client:
             else:
                 print("Command not recognized.")
 
+    def game_command_loop(self, soc):
+        print("Jogo não foi implementado ainda X)")
+
+    def _bind_port(self, soc : socket.socket, port=3001) -> int:
+        try:
+            soc.bind((Client.MYADDR, port))
+            print("Listening in port", port)
+        except OSError:
+            port += randint(1, 99)
+            soc.bind((Client.MYADDR, port))
+            print("Listening in port", port)
+
+        return port
+
+
+    def _get_match_socket(self):
+        new_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        new_port = self._bind_port(new_socket)
+        return new_socket, new_port
+
+
     # Convites
     def _listen_messages(self):
         """Listen for unprompted server messages."""
@@ -108,9 +133,24 @@ class Client:
                 accept = input("Aceitar?\n[S/n]: ")
                 if accept == "S":
                     print(f"Iniciando conexão com {user}")
+                    self._match_socket, port = self._get_match_socket()
+
                     self.socket.sendmsg([
-                        bytes(f"answer;{user};True", "utf-8")
+                        bytes(f"answer;{user};True;{port}", "utf-8")
                     ])
+                    print("Resposta enviada; Esperando conexão.")
+                    self._match_socket.settimeout(Client.MATCHTIMEOUT)
+                    try:
+                        self._match_socket.listen()
+                        conn, addr = self._match_socket.accept()
+                    except socket.timeout as e:
+                        conn = addr = None
+
+                    if conn is None:
+                        print("Conexão não foi recebida =(")
+                    else:
+                        self.game_command_loop(conn)
+
                     # Se preparar para conexão
                 else:
                     print(f"Recusando convite de {user}")
@@ -122,6 +162,9 @@ class Client:
                 user,accept = msg[1:3]
                 if accept == "True":
                     print(f"User {user} has accepted your invite for a game :D")
+                    print(msg)
+                    addr,port = msg[3:5]
+                    print(f"Connecting to user in {addr}:{port}")
                 else:
                     print(f"User {user} has declined your invite for a game =(")
     # Mensagens
