@@ -5,7 +5,7 @@ class Client:
 
     def __init__(self):
         self.socket = None
-        self.user_name = 'leandro'
+        self.user_name = ''
 
     def start(self,port,ip):
         """Connects to server and reads user input."""
@@ -118,13 +118,12 @@ class Client:
                         bytes(f"answer;{user};False", "utf-8")
                     ])
 
-            elif msg[0] == "answerACK":
+            elif msg[0] == "answer":
                 user,accept = msg[1:3]
                 if accept == "True":
                     print(f"User {user} has accepted your invite for a game :D")
                 else:
                     print(f"User {user} has declined your invite for a game =(")
-
     # Mensagens
     def _send_begin(self, args):
         if len(args) < 1:
@@ -134,7 +133,8 @@ class Client:
 
         self.socket.sendmsg([
                 bytes("begin;","utf-8"),
-                bytes(f"{args[0]}","utf-8"),
+                bytes(f"{args[0]};","utf-8"),
+                bytes(f"{self.user_name}","utf-8"),
             ])
 
     def _send_adduser(self, args):

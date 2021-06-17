@@ -18,7 +18,7 @@ class Server:
     """
     HOST = "127.0.0.1"
     USERSF = "users.txt"
-    logged_users = []
+    logged_users = {}
     t_usernames = {}
     t_sockets = {}
     t_addresses = {}
@@ -59,6 +59,7 @@ class Server:
         # main loop
         while True:
             print("Received connection from", addr)
+            print("LOGGED: ", self.logged_users)
             data = conn.recv(1024)
             if not data:
                 break
@@ -89,27 +90,29 @@ class Server:
 
     def get_uname(self):
         """Returns current thread associated Username or None"""
-        return Server.t_usernames.get(threading.get_ident)
+        return Server.t_usernames.get(threading.get_ident())
 
     def set_uname(self, username):
         """Sets username associated with current thread"""
-        Server.t_usernames[threading.get_ident] = username
+        Server.t_usernames[threading.get_ident()] = username
+        print(f"t_usernames:", Server.t_usernames)
 
     def get_socket(self):
         """Returns current thread associated socket or None"""
-        return Server.t_sockets.get(threading.get_ident)
+        print("THREADING IDENT:", threading.get_ident())
+        return Server.t_sockets.get(threading.get_ident())
 
     def set_socket(self, socket):
         """Sets socket associated with current thread"""
-        Server.t_sockets[threading.get_ident] = socket
+        Server.t_sockets[threading.get_ident()] = socket
 
     def get_addr(self):
         """Returns current thread associated socket or None"""
-        return Server.t_addresses.get(threading.get_ident)
+        return Server.t_addresses.get(threading.get_ident())
 
     def set_addr(self, addr):
         """Sets socket associated with current thread"""
-        Server.t_addresses[threading.get_ident] = addr
+        Server.t_addresses[threading.get_ident()] = addr
 
 
     # Message related methods
@@ -120,15 +123,15 @@ class Server:
 
     def log_user(self, username):
         print(f"Login in user: {username}")
-        Server.logged_users.append((username, self.get_socket()))
+        Server.logged_users[username] = self.get_socket()
 
     def logout_user(self, username):
         print(f"Login out user: {username}")
-        Server.logged_users.pop((username, self.get_socket()))
+        del Server.logged_users[username]
 
-    def invite_user(self, u_socket):
+    def invite_user(self, u_socket, sender):
         print(f"inviting user in connection: {u_socket}")
-        u_socket.sendmsg([bytes(f"invite;{self.get_uname()}","utf-8")])
+        u_socket.sendmsg([bytes(f"invite;{sender}","utf-8")])
 
     def answer_user(self, u_socket, accept):
         print(f"Answering user in connection: {u_socket}")
@@ -140,33 +143,30 @@ class Server:
         if len(args) != 2:
             print("answer requires 2 arguments")
             return ["answerERR", "Wrong Number of Arguments"]
-        
+
         ans_user, accept = args
-        
-        for username, us_socket in Server.logged_users:
-            print(f"{username}: {us_socket}")
-            if ans_user == username:
-                print("Found user")
-                self.answer_user(us_socket, accept)
-                return ["answerACK"]
+        print("USERNAMES:", Server.logged_users)
+        if ans_user in Server.logged_users:
+            self.answer_user(Server.logged_users[ans_user], accept)
+            return ["answerACK"]
 
         return ["answerERR", "User not connected, can't respond"]
-        
+
     def _begin(self, args):
         """Invites another user and waits for response."""
-        if len(args) != 1:
+        if len(args) != 2:
             print("begin requires 1 argument")
             return ["beginERR", "Wrong Number of Arguments"]
-        
-        invited_user = args[0]
 
-        for username, us_socket in Server.logged_users:
-            if invited_user == username:
-                self.invite_user(us_socket)
-                return ["beginACK"]
-        
+        invited_user = args[0]
+        sender = args[1]
+        print(f"{sender} is inviting {invited_user}")
+        if invited_user in Server.logged_users:
+            self.invite_user(Server.logged_users[invited_user], sender)
+            return ["beginACK"]
+
         return ["beginERR", "Invited user not connected"]
-        
+
         #invite_successfull = self.invite_user(invited_user)
 
     def _list(self):
