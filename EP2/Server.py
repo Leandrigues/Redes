@@ -26,7 +26,7 @@ class Server:
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # force creation of user file
-        open(Server.USERSF,"r").close()
+        open(Server.USERSF,"w").close()
 
     def listen(self, port):
         self._bind_port(port)
