@@ -26,7 +26,7 @@ class Server:
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # force creation of user file
-        open(Server.USERSF, "w").close()
+        open(Server.USERSF, "r").close()
 
     def listen(self, port):
         self._bind_port(port)
@@ -160,7 +160,7 @@ class Server:
 
         invited_user = args[0]
         sender_user = args[1]
-        print(f"{sender} is inviting {invited_user}")
+        print(f"{sender_user} is inviting {invited_user}")
         if invited_user in Server.logged_users:
             self.invite_user(Server.logged_users[invited_user], sender_user)
             return ["beginACK"]
@@ -170,7 +170,7 @@ class Server:
         #invite_successfull = self.invite_user(invited_user)
 
     def _list(self):
-        return ["listACK"] + [u for u,_ in Server.logged_users]
+        return ["listACK"] + [u for u in Server.logged_users]
 
     def _login(self, args):
         if len(args) != 2:
@@ -181,6 +181,8 @@ class Server:
         with open(Server.USERSF, "r") as handle:
             users = handle.read().split("\n")
             for u in users:
+                if u == "":
+                    break
                 current_username, current_password = u.split("\t")
                 if username == current_username:
                     if passwd == current_password:
