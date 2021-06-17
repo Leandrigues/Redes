@@ -1,4 +1,5 @@
 import socket
+from random import randint
 
 class Client:
     """Classe que representa um Cliente"""
@@ -89,8 +90,13 @@ class Client:
             else:
                 print("Command not recognized.")
 
-    def game_command_loop(self, soc):
+    def game_command_loop(self, soc, first_move=True):
         print("Jogo não foi implementado ainda X)")
+        if first_move:
+            soc.sendmsg([bytes("Fala colega","utf-8")])
+        else:
+            msg = soc.recv(1024)
+            print("Recebi: ", msg)
 
     def _bind_port(self, soc : socket.socket, port=3001) -> int:
         try:
@@ -165,6 +171,8 @@ class Client:
                     print(msg)
                     addr,port = msg[3:5]
                     print(f"Connecting to user in {addr}:{port}")
+                    conn = self.connect(port,addr,False)
+                    self.game_command_loop(conn, False)
                 else:
                     print(f"User {user} has declined your invite for a game =(")
     # Mensagens
