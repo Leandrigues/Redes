@@ -26,7 +26,7 @@ class Server:
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # force creation of user file
-        open(Server.USERSF,"w").close()
+        open(Server.USERSF, "w").close()
 
     def listen(self, port):
         self._bind_port(port)
@@ -144,10 +144,10 @@ class Server:
             print("answer requires 2 arguments")
             return ["answerERR", "Wrong Number of Arguments"]
 
-        ans_user, accept = args
+        user_to_answer, accept = args
         print("USERNAMES:", Server.logged_users)
-        if ans_user in Server.logged_users:
-            self.answer_user(Server.logged_users[ans_user], accept)
+        if user_to_answer in Server.logged_users:
+            self.answer_user(Server.logged_users[user_to_answer], accept)
             return ["answerACK"]
 
         return ["answerERR", "User not connected, can't respond"]
@@ -159,10 +159,10 @@ class Server:
             return ["beginERR", "Wrong Number of Arguments"]
 
         invited_user = args[0]
-        sender = args[1]
+        sender_user = args[1]
         print(f"{sender} is inviting {invited_user}")
         if invited_user in Server.logged_users:
-            self.invite_user(Server.logged_users[invited_user], sender)
+            self.invite_user(Server.logged_users[invited_user], sender_user)
             return ["beginACK"]
 
         return ["beginERR", "Invited user not connected"]
@@ -177,13 +177,13 @@ class Server:
             print("login requires 2 arguments")
             return ["loginERR", "Wrong Number of Arguments"]
 
-        username,passwd = args
+        username, passwd = args
         with open(Server.USERSF, "r") as handle:
             users = handle.read().split("\n")
             for u in users:
-                cur_usn, cur_pswd = u.split("\t")
-                if username == cur_usn:
-                    if passwd == cur_pswd:
+                current_username, current_password = u.split("\t")
+                if username == current_username:
+                    if passwd == current_password:
                         # TODO: check if user is alreaddy logged in
                         self.log_user(username)
 
