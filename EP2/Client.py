@@ -9,7 +9,6 @@ class Client:
     def __init__(self):
         self.socket = None
         self.user_name = ''
-        self.MYADDR = socket.gethostbyname(socket.gethostname())
 
     def start(self,port,ip):
         """Connects to server and reads user input."""
@@ -83,7 +82,11 @@ class Client:
                     print(f"\t{u}")
 
             # Comandos que não tem argumentos
-            elif cmd[0] in ["leaders","list","delay","end","logout"]:
+            elif cmd[0] == "logout":
+                self.socket.sendmsg([bytes(cmd[0],"utf-8")])
+                self._listen_logoutACK()
+
+            elif cmd[0] in ["leaders","list","delay","end"]:
                 self.socket.sendmsg([bytes(cmd[0],"utf-8")])
                 resp = self.socket.recv(1024).decode("utf-8")
                 print(resp)
@@ -181,6 +184,7 @@ class Client:
                 print("Received a disconnect message from server")
                 self.socket.close()
                 exit(1)
+
     # Mensagens
     def _send_begin(self, args):
         if len(args) < 1:
@@ -261,8 +265,18 @@ class Client:
 
     def _listen_passwdACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
-        print("Listen passack:", resp)
+        print("Listen passACK:", resp)
         if resp[0] == "passwdACK":
             print("Senha alterada com sucesso.")
         else:
             print("Falha ao alterar senha. Motivo:", resp[1])
+
+    def _listen_logoutACK(self):
+        resp = self.socket.recv(1024).decode("utf-8").split(";")
+        print(resp[0])
+
+        if resp[0] == "logoutACK":
+            self.user_name = ''
+            print("Deslogado com sucesso!")
+        else:
+            print("Falha ao deslogar.")

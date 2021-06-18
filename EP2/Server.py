@@ -109,6 +109,8 @@ class Server:
             elif msg[0] == "exit":
                 resp = self.disconnect_user(addr)
                 break
+            elif msg[0] == "logout":
+                resp = self.logout_user()
             else:
                 resp = ['Comando Não Reconhecido']
             print(resp)
@@ -127,21 +129,26 @@ class Server:
         print(f"Login in user: {username}")
         Server.logged_users[username] = self.get_socket()
 
-    def logout_user(self, username):
-        print(f"Login out user: {username}")
-        del Server.logged_users[username]
+    def logout_user(self):
+        print(f"Login out user: {self.get_uname()}")
+        del Server.logged_users[self.get_uname()]
+        return ["logoutACK"]
+
 
     def invite_user(self, u_socket, sender):
         print(f"inviting user in connection: {u_socket}")
         u_socket.sendmsg([bytes(f"invite;{sender}","utf-8")])
 
-    def answer_user(self, u_socket, accept, sender_user_name, sender_port=None):
+    def answer_user(self, u_socket, accept, sender_name, sender_port=None):
         print(f"Answering user in connection: {u_socket}")
+        receiver_name = self.get_uname()
+        receiver_conn = Server.logged_users[receiver_name].getpeername()
+        sender_conn = Server.logged_users[sender_name].getpeername()
 
         answer_string = f"answer;{self.get_uname()};{accept}"
         if accept:
             # TODO: Send user IP to log it and change in {}
-            self._write_log(f"A game was started between '{self.get_uname()}' and '{sender_user_name}'")
+            self._write_log(f"A game was started between {receiver_name} {receiver_conn} and {sender_name} {sender_conn}")
             answer_string += f";{self.get_addr()[0]};{sender_port}"
 
         u_socket.sendmsg([bytes(answer_string,"utf-8")])
