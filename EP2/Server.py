@@ -135,11 +135,13 @@ class Server:
         print(f"inviting user in connection: {u_socket}")
         u_socket.sendmsg([bytes(f"invite;{sender}","utf-8")])
 
-    def answer_user(self, u_socket, accept, sender_port=None):
+    def answer_user(self, u_socket, accept, sender_user_name, sender_port=None):
         print(f"Answering user in connection: {u_socket}")
 
         answer_string = f"answer;{self.get_uname()};{accept}"
-        if accept: 
+        if accept:
+            # TODO: Send user IP to log it and change in {}
+            self._write_log(f"A game was started between '{self.get_uname()}' and '{sender_user_name}'")
             answer_string += f";{self.get_addr()[0]};{sender_port}"
 
         u_socket.sendmsg([bytes(answer_string,"utf-8")])
@@ -152,9 +154,11 @@ class Server:
 
         user_to_answer, accept = args[:2]
         sender_port = args[2] if len(args) > 2 else None
+        sender_user_name = args[3]
+
         print("USERNAMES:", Server.logged_users)
         if user_to_answer in Server.logged_users:
-            self.answer_user(Server.logged_users[user_to_answer], accept, sender_port)
+            self.answer_user(Server.logged_users[user_to_answer], accept, sender_user_name, sender_port)
             return ["answerACK"]
 
         return ["answerERR", "User not connected, can't respond"]

@@ -9,6 +9,7 @@ class Client:
     def __init__(self):
         self.socket = None
         self.user_name = ''
+        self.MYADDR = socket.gethostbyname(socket.gethostname())
 
     def start(self,port,ip):
         """Connects to server and reads user input."""
@@ -142,7 +143,7 @@ class Client:
                     self._match_socket, port = self._get_match_socket()
 
                     self.socket.sendmsg([
-                        bytes(f"answer;{user};True;{port}", "utf-8")
+                        bytes(f"answer;{user};True;{port};{user}", "utf-8")
                     ])
                     print("Resposta enviada; Esperando conexão.")
                     self._match_socket.settimeout(Client.MATCHTIMEOUT)
