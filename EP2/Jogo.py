@@ -16,6 +16,16 @@ class Jogo():
         else:
             self.tabuleiro = tab
 
+    def __str__(self):
+        line_sep = "    |-----|-----|-----\n"
+        s = ""
+        s += "    |  0  |  1  |  2\n" + line_sep
+        for i,line in enumerate(self.tabuleiro):
+            s += f"{i:^4}|{line[0]:^5}|{line[1]:^5}|{line[2]:^5}\n"
+            s += line_sep
+        s += "\n"
+        return s
+
     def terminou(self):
         """Verifica se o jogo terminou. Retorna símbolo vencedor ou None"""
         # Verifica linhas

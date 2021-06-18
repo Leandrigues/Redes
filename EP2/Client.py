@@ -107,7 +107,6 @@ class Client:
 
         # Se não é o primeiro jogador, espera a primeira jogada.
         turns = 0 if first_move else 1
-        print(jogo.tabuleiro)
 
         while jogo.terminou() is None:
             print("Loop it")
@@ -133,7 +132,7 @@ class Client:
                 jogo.faz_jogada(int(p_x), int(p_y), self._op_simb)
 
             # fazer função de print para o jogo
-            print(jogo.tabuleiro)
+            print(jogo)
             turns += 1
         
         print("Saiu game_command_loop")
