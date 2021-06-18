@@ -13,7 +13,7 @@ Mudar senha
 Login
 
 	login;<username>;<password>
-	loginACK
+	loginACK;<username>
 	loginERR;<err_msg>
 	logout
 	logoutACK
@@ -36,3 +36,8 @@ Jogada:
 
 	play;<pos_x>;<pos_y>
 
+Reportar resultado:
+
+	result;<username>;<opponent_username>;(WIN or LOST)
+	resultACK
+	resultERR;<err_msg>

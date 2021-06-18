@@ -96,7 +96,7 @@ class Client:
             else:
                 print("Command not recognized.")
 
-    def game_command_loop(self, soc : socket.socket, first_move=True):
+    def game_command_loop(self, soc : socket.socket, opponent:str, first_move=True):
         print("Entrou game_command_loop")
 
         self._my_simb = Jogo.SIMBOLOS[0 if first_move else 1]
@@ -135,6 +135,14 @@ class Client:
             print(jogo)
             turns += 1
         
+        if jogo.terminou() == self._my_simb:
+            print(f"Você perdeu o jogo contra {opponent}! X(")
+            self.socket.sendmsg([bytes(f"result;{self.user_name};{opponent};LOST")])
+        else:
+            print(f"Você ganhou o jogo contra {opponent}! :D")
+            self.socket.sendmsg([bytes(f"result;{self.user_name};{opponent};WIN")])
+
+        self._listen_resultACK()
         print("Saiu game_command_loop")
         
 
@@ -182,7 +190,7 @@ class Client:
                     self._match_socket, port = self._get_match_socket()
 
                     self.socket.sendmsg([   
-                        bytes(f"answer;{user};True;{port};{user}", "utf-8")
+                        bytes(f"answer;{user};True;{port};{self.user_name}", "utf-8")
                     ])
                     print("Resposta enviada; Esperando conexão.")
                     self._match_socket.settimeout(Client.MATCHTIMEOUT)
@@ -196,7 +204,7 @@ class Client:
                         print("Conexão não foi recebida =(")
                     else:
                         print("Iniciando jogo!")
-                        self.game_command_loop(conn)
+                        self.game_command_loop(conn, user)
 
                     # Se preparar para conexão
                 else:
@@ -213,7 +221,7 @@ class Client:
                     addr,port = msg[3:5]
                     print(f"Connecting to user in {addr}:{port}")
                     conn = self.connect(port,addr,False)
-                    self.game_command_loop(conn, False)
+                    self.game_command_loop(conn, user, False)
                 else:
                     print(f"User {user} has declined your invite for a game =(")
 
@@ -311,6 +319,14 @@ class Client:
             print("Senha alterada com sucesso.")
         else:
             print("Falha ao alterar senha. Motivo:", resp[1])
+
+    def _listen_resultACK(self):
+        resp = self.socket.recv(1024).decode("utf-8").split(";")
+        print("Listen resultACK:", resp)
+        if resp[0] == "resultACK":
+            print("Resultado reportado com sucesso.")
+        else:
+            print("Falha ao reportar resultado. Motivo:", resp[1])
 
     def _listen_logoutACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
