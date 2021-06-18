@@ -1,6 +1,8 @@
 import socket
 from random import randint
 
+from Jogo import Jogo
+
 class Client:
     """Classe que representa um Cliente"""
     MYADDR="127.0.0.1"
@@ -94,13 +96,48 @@ class Client:
             else:
                 print("Command not recognized.")
 
-    def game_command_loop(self, soc, first_move=True):
-        print("Jogo não foi implementado ainda X)")
-        if first_move:
-            soc.sendmsg([bytes("Fala colega","utf-8")])
-        else:
-            msg = soc.recv(1024)
-            print("Recebi: ", msg)
+    def game_command_loop(self, soc : socket.socket, first_move=True):
+        print("Entrou game_command_loop")
+
+        self._my_simb = Jogo.SIMBOLOS[0 if first_move else 1]
+        self._op_simb = Jogo.SIMBOLOS[1 if first_move else 0]
+
+        # inicia tabuleiro
+        jogo = Jogo()
+
+        # Se não é o primeiro jogador, espera a primeira jogada.
+        turns = 0 if first_move else 1
+        print(jogo.tabuleiro)
+
+        while jogo.terminou() is None:
+            print("Loop it")
+            if turns % 2: # turnos pares, minha jogada
+                jogou = False
+                while not jogou:
+                    cmd = input(">").strip().split(" ")
+                    if len(cmd) < 2:
+                        print("Digite:\n> linha coluna")
+                        continue
+                    p_x, p_y = cmd
+                    if jogo.pode_jogar(int(p_x), int(p_y)):
+                        jogo.faz_jogada(int(p_x), int(p_y), self._my_simb)
+                        self._send_play(p_x, p_y, soc)
+                        jogou = True
+                    else:
+                        print("Posição inválida.")
+            else:
+                
+                msg = soc.recv(1024).decode("utf-8")
+                print("Jogada recebida: ", msg)
+                p_x, p_y = msg.split(";")[1:]
+                jogo.faz_jogada(int(p_x), int(p_y), self._op_simb)
+
+            # fazer função de print para o jogo
+            print(jogo.tabuleiro)
+            turns += 1
+        
+        print("Saiu game_command_loop")
+        
 
     def _bind_port(self, soc : socket.socket, port=3001) -> int:
         try:
@@ -159,6 +196,7 @@ class Client:
                     if conn is None:
                         print("Conexão não foi recebida =(")
                     else:
+                        print("Iniciando jogo!")
                         self.game_command_loop(conn)
 
                     # Se preparar para conexão
@@ -186,6 +224,10 @@ class Client:
                 exit(1)
 
     # Mensagens
+    def _send_play(self, p_x, p_y, soc):
+        soc.sendmsg([bytes(
+            f"play;{p_x};{p_y}", "utf-8")])
+
     def _send_begin(self, args):
         if len(args) < 1:
             print("begin usage:\n"
