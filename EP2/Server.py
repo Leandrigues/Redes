@@ -28,6 +28,9 @@ class Server:
     t_sockets = {}
     t_addresses = {}
     connections = []
+    
+    # user : (user, matched_user)
+    current_matches = {}
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -48,7 +51,6 @@ class Server:
             self._write_log(f"Client connected from ip {addr[0]} and port {addr[1]}")
             client_thread = threading.Thread(target=self._read_commands, args=(conn, addr))
             client_thread.start()
-
 
     def _bind_port(self, port):
         try:
@@ -149,6 +151,9 @@ class Server:
         if accept:
             self._write_log(f"A game was started between {receiver_name} {receiver_conn} and {sender_name} {sender_conn}")
             answer_string += f";{self.get_addr()[0]};{sender_port}"
+            self.current_matches[sender_name] = self.get_uname()
+            self.current_matches[self.get_uname()] = sender_name
+
 
         u_socket.sendmsg([bytes(answer_string,"utf-8")])
 
@@ -177,8 +182,15 @@ class Server:
 
         invited_user = args[0]
         sender_user = args[1]
+
+        if Server.current_matches.get(sender_user) is not None:
+            return ["beginERR", "Inviting User currently in a match"]
+
         print(f"{sender_user} is inviting {invited_user}")
         if invited_user in Server.logged_users:
+            if Server.current_matches.get(invited_user) is not None:
+                return ["beginERR", "Invited user currently in a match"]
+
             self.invite_user(Server.logged_users[invited_user], sender_user)
             return ["beginACK"]
 
