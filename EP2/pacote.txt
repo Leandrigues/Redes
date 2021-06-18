@@ -1,0 +1,38 @@
+Cadastrar usuário
+
+	adduser;<username>;<password>
+	adduserACK
+	adduserERR;<err_msg>
+
+Mudar senha
+
+	passwd;<old_passwd>;<new_passwd>
+	passwdACK
+	passwdERR;<err_msg>
+
+Login
+
+	login;<username>;<password>
+	loginACK
+	loginERR;<err_msg>
+	logout
+	logoutACK
+
+Convidar um jogador para uma partida:
+
+	begin;<user_to_invite>;<user_inviting>
+	beginACK
+	beginERR;<err_msg>
+	invite;<inviting_user>
+	answer;<inviting_user>;True;<port_to_connect>;<responding_user>
+	answer;<inviting_user>;False
+
+Listar jogadores conectados:
+
+	list
+	listACK;<user_1>;<user_2>;...;<user_n>
+
+Jogada:
+
+	play;<pos_x>;<pos_y>
+
