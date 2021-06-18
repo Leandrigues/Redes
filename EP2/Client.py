@@ -83,12 +83,25 @@ class Client:
                 for u in resp.split(";")[1:]:
                     print(f"\t{u}")
 
-            # Comandos que não tem argumentos
+            elif cmd[0] == "leaders":
+                self.socket.sendmsg([bytes(cmd[0],"utf-8")])
+                resp = self.socket.recv(1024).decode("utf-8")
+
+                leaderboard = [[s for s in u.split(":")] for u in resp.split(";")[1:]]
+                leaderboard.sort(key=lambda x: int(x[1]))
+
+                print("-"*21 + 
+                      f"\n{'LEADERBOARD':^20}\n" +
+                      "-"*21)
+
+                for username, score in leaderboard:
+                    print(f"{username:^12}|  {int(score):3d}  |")
+ 
             elif cmd[0] == "logout":
                 self.socket.sendmsg([bytes(cmd[0],"utf-8")])
                 self._listen_logoutACK()
 
-            elif cmd[0] in ["leaders","list","delay","end"]:
+            elif cmd[0] in ["delay","end"]:
                 self.socket.sendmsg([bytes(cmd[0],"utf-8")])
                 resp = self.socket.recv(1024).decode("utf-8")
                 print(resp)

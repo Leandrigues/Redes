@@ -104,6 +104,8 @@ class Server:
                 resp = self._login(msg[1:], addr)
             elif msg[0] == "list":
                 resp = self._list()
+            elif msg[0] == "leaders":
+                resp = self._leaders()
             elif msg[0] == "begin":
                 resp = self._begin(msg[1:])
             elif msg[0] == "answer":
@@ -201,6 +203,15 @@ class Server:
     def _list(self):
         return ["listACK"] + [u for u in Server.logged_users]
 
+    def _leaders(self):
+        resp = ["leadersACK"]
+        with open(Server.USERSF, "r") as handle:
+            for line in handle.readlines():
+                username, _, score = line.strip().split("\t")
+                resp.append(f"{username}:{score}")
+        print("resp:",resp)
+        return resp
+
     def _login(self, args, addr):
         if len(args) != 2:
             print("login requires 2 arguments")
@@ -212,7 +223,7 @@ class Server:
             for user in users:
                 if user == "":
                     break
-                current_username, current_password = user.split("\t")
+                current_username, current_password, _ = user.split("\t")
                 if username == current_username:
                     if passwd == current_password:
                         # TODO: check if user is alreaddy logged in
@@ -248,7 +259,7 @@ class Server:
             print("Usuário já cadastrado.\n")
             return ["adduserERR", "USEREXISTS"]
 
-        users.append("\t".join(args) + '\n')
+        users.append("\t".join(args) + '\t0\n')
         user_it = iter(users)
 
 
@@ -278,7 +289,7 @@ class Server:
                 if line_array[1] != old_password:
                     return ["passwdERR", "WRONGPASSWORD"]
                 else:
-                    new_line = f"{user}\t{new_password}\n"
+                    new_line = f"{user}\t{new_password}\t{line_array[2]}\n"
                     lines[index] = new_line
                     break
 
