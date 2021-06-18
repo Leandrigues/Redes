@@ -2,6 +2,7 @@ import socket
 import threading
 import sys
 import signal
+import os
 from random import randint
 from datetime import datetime
 
@@ -26,6 +27,7 @@ class Server:
     t_usernames = {}
     t_sockets = {}
     t_addresses = {}
+    connections = []
 
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -42,11 +44,11 @@ class Server:
         while True:
             self.socket.listen()
             conn, addr = self.socket.accept()
+            self.connections.append(conn)
             self._write_log(f"Client connected from ip {addr[0]} and port {addr[1]}")
             client_thread = threading.Thread(target=self._read_commands, args=(conn, addr))
             client_thread.start()
 
-        self.disconnect()
 
     def _bind_port(self, port):
         try:
@@ -62,9 +64,17 @@ class Server:
 
 
     def _signal_handler(self, sig, frame):
+        print("Received a CTRL+C")
         self._write_log(f"Server shutting down")
+        self.disconnect_connected_clients()
         self.disconnect()
-        exit(0)
+        os._exit(0)
+
+
+    def disconnect_connected_clients(self):
+        for conn in self.connections:
+            print(f"Disconnecting {conn}")
+            conn.sendmsg([bytes("disconnect", "utf-8")])
 
     def _read_commands(self, conn, addr):
         # adds connection reference
@@ -96,46 +106,18 @@ class Server:
                 resp = self._begin(msg[1:])
             elif msg[0] == "answer":
                 resp = self._answer(msg[1:])
+            elif msg[0] == "exit":
+                resp = self.disconnect_user(addr)
+                break
             else:
                 resp = ['Comando Não Reconhecido']
             print(resp)
             conn.sendmsg([bytes(";".join(resp),"utf-8")])
 
-
-    def _write_log(self, log):
-        with open(Server.LOGF, "a") as f:
-            f.write(f"{self._get_formated_time()} {log}\n")
-            f.close()
-    # util methods:
-
-    def get_uname(self):
-        """Returns current thread associated Username or None"""
-        return Server.t_usernames.get(threading.get_ident())
-
-    def set_uname(self, username):
-        """Sets username associated with current thread"""
-        Server.t_usernames[threading.get_ident()] = username
-        print(f"t_usernames:", Server.t_usernames)
-
-    def get_socket(self):
-        """Returns current thread associated socket or None"""
-        print("THREADING IDENT:", threading.get_ident())
-        return Server.t_sockets.get(threading.get_ident())
-
-    def set_socket(self, socket):
-        """Sets socket associated with current thread"""
-        Server.t_sockets[threading.get_ident()] = socket
-
-    def get_addr(self):
-        """Returns current address associated socket or None"""
-        return Server.t_addresses.get(threading.get_ident())
-
-    def set_addr(self, addr):
-        """Sets address associated with current thread"""
-        Server.t_addresses[threading.get_ident()] = addr
-
-
     # Message related methods
+    def disconnect_user(self, addr):
+        self._write_log(f"User from ip {addr[1]} disconnected")
+        return ["exitACK"]
 
     def disconnect(self):
         print("Closing socket")
@@ -285,3 +267,36 @@ class Server:
 
     def _get_formated_time(self):
         return f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
+
+    # util methods:
+
+    def get_uname(self):
+        """Returns current thread associated Username or None"""
+        return Server.t_usernames.get(threading.get_ident())
+
+    def set_uname(self, username):
+        """Sets username associated with current thread"""
+        Server.t_usernames[threading.get_ident()] = username
+        print(f"t_usernames:", Server.t_usernames)
+
+    def get_socket(self):
+        """Returns current thread associated socket or None"""
+        print("THREADING IDENT:", threading.get_ident())
+        return Server.t_sockets.get(threading.get_ident())
+
+    def set_socket(self, socket):
+        """Sets socket associated with current thread"""
+        Server.t_sockets[threading.get_ident()] = socket
+
+    def get_addr(self):
+        """Returns current address associated socket or None"""
+        return Server.t_addresses.get(threading.get_ident())
+
+    def set_addr(self, addr):
+        """Sets address associated with current thread"""
+        Server.t_addresses[threading.get_ident()] = addr
+
+    def _write_log(self, log):
+        with open(Server.LOGF, "a") as f:
+            f.write(f"{self._get_formated_time()} {log}\n")
+            f.close()

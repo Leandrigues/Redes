@@ -31,7 +31,7 @@ class Client:
         print("Closing socket")
 
         #Sends Empty message to indicate connection closing
-        self.socket.sendmsg([bytes()])
+        self.socket.sendmsg([bytes("exit", "utf-8")])
         self.socket.close()
 
     def server_command_loop(self):
@@ -175,6 +175,11 @@ class Client:
                     self.game_command_loop(conn, False)
                 else:
                     print(f"User {user} has declined your invite for a game =(")
+
+            elif msg[0] == "disconnect":
+                print("Received a disconnect message from server")
+                self.socket.close()
+                exit(1)
     # Mensagens
     def _send_begin(self, args):
         if len(args) < 1:
