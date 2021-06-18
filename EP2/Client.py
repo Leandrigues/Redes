@@ -181,7 +181,7 @@ class Client:
                     print(f"Iniciando conexão com {user}")
                     self._match_socket, port = self._get_match_socket()
 
-                    self.socket.sendmsg([
+                    self.socket.sendmsg([   
                         bytes(f"answer;{user};True;{port};{user}", "utf-8")
                     ])
                     print("Resposta enviada; Esperando conexão.")
@@ -306,7 +306,7 @@ class Client:
 
     def _listen_passwdACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
-        print("Listen passACK:", resp)
+        print("Listen passwdACK:", resp)
         if resp[0] == "passwdACK":
             print("Senha alterada com sucesso.")
         else:
