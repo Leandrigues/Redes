@@ -1,6 +1,9 @@
 import socket
-from random import randint
 import threading
+import sys
+import signal
+from random import randint
+from datetime import datetime
 
 class Server:
     """
@@ -18,6 +21,7 @@ class Server:
     """
     HOST = "127.0.0.1"
     USERSF = "users.txt"
+    LOGF = "log.txt"
     logged_users = {}
     t_usernames = {}
     t_sockets = {}
@@ -26,7 +30,11 @@ class Server:
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # force creation of user file
-        open(Server.USERSF, "r").close()
+        open(Server.USERSF, "a+").close()
+        open(Server.LOGF, "a+").close()
+
+        # handles CTRL+C before exit
+        signal.signal(signal.SIGINT, self._signal_handler)
 
     def listen(self, port):
         self._bind_port(port)
@@ -34,6 +42,7 @@ class Server:
         while True:
             self.socket.listen()
             conn, addr = self.socket.accept()
+            self._write_log(f"Client connected from ip {addr[0]} and port {addr[1]}")
             client_thread = threading.Thread(target=self._read_commands, args=(conn, addr))
             client_thread.start()
 
@@ -42,15 +51,22 @@ class Server:
     def _bind_port(self, port):
         try:
             self.socket.bind((Server.HOST, port))
-            print("Listening in port", port)
         except OSError:
             port += randint(1, 99)
             self.socket.bind((Server.HOST, port))
-            print("Listening in port", port)
+
+        print("Listening in port", port)
+
+
+        self._write_log(f"Server started listening in port {port}")
+
+
+    def _signal_handler(self, sig, frame):
+        self._write_log(f"Server shutting down")
+        self.disconnect()
+        exit(0)
 
     def _read_commands(self, conn, addr):
-        # local connection data
-
         # adds connection reference
         self.set_socket(conn)
         print(f"conn: {conn}")
@@ -73,7 +89,7 @@ class Server:
             elif msg[0] == "passwd":
                 resp = self._passwd(msg[1:])
             elif msg[0] == "login":
-                resp = self._login(msg[1:])
+                resp = self._login(msg[1:], addr)
             elif msg[0] == "list":
                 resp = self._list()
             elif msg[0] == "begin":
@@ -86,6 +102,10 @@ class Server:
             conn.sendmsg([bytes(";".join(resp),"utf-8")])
 
 
+    def _write_log(self, log):
+        with open(Server.LOGF, "a") as f:
+            f.write(f"{self._get_formated_time()} {log}\n")
+            f.close()
     # util methods:
 
     def get_uname(self):
@@ -177,7 +197,7 @@ class Server:
     def _list(self):
         return ["listACK"] + [u for u in Server.logged_users]
 
-    def _login(self, args):
+    def _login(self, args, addr):
         if len(args) != 2:
             print("login requires 2 arguments")
             return ["loginERR", "Wrong Number of Arguments"]
@@ -185,10 +205,10 @@ class Server:
         username, passwd = args
         with open(Server.USERSF, "r") as handle:
             users = handle.read().split("\n")
-            for u in users:
-                if u == "":
+            for user in users:
+                if user == "":
                     break
-                current_username, current_password = u.split("\t")
+                current_username, current_password = user.split("\t")
                 if username == current_username:
                     if passwd == current_password:
                         # TODO: check if user is alreaddy logged in
@@ -196,8 +216,10 @@ class Server:
 
                         #TODO: check if this connection is already logged in
                         self.set_uname(username)
+                        self._write_log(f"User '{username}' successfuly logged in from ip {addr[0]}")
                         return ["loginACK", username]
                     else:
+                        self._write_log(f"User '{username}' failed to login from ip {addr[0]}")
                         return ["loginERR", "Wrong Password"]
 
             return ["loginERR", "Username not found"]
@@ -229,7 +251,7 @@ class Server:
         # Sobrescreve arquivo
         with open(Server.USERSF,"w") as handle:
             handle.writelines(sorted(users))
-
+            handle.close()
         return ["adduserACK"]
 
     def _passwd(self, args):
@@ -261,3 +283,5 @@ class Server:
 
         return ["passwdACK"]
 
+    def _get_formated_time(self):
+        return f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
