@@ -147,7 +147,6 @@ class Server:
 
         answer_string = f"answer;{self.get_uname()};{accept}"
         if accept:
-            # TODO: Send user IP to log it and change in {}
             self._write_log(f"A game was started between {receiver_name} {receiver_conn} and {sender_name} {sender_conn}")
             answer_string += f";{self.get_addr()[0]};{sender_port}"
 
