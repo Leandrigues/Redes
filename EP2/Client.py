@@ -3,6 +3,10 @@ import time
 import threading
 from random import randint
 from Jogo import Jogo
+from ssl import SSLContext, PROTOCOL_TLS_CLIENT
+
+context = SSLContext(PROTOCOL_TLS_CLIENT)
+context.load_verify_locations('cert.pem')
 
 class Client:
     """Classe que representa um Cliente"""
@@ -17,8 +21,17 @@ class Client:
     def start(self,port,ip):
         """Connects to server and reads user input."""
 
+        hostname="jogo-da-velha-server"
         self.socket = self.connect(port,ip)
-        self.server_command_loop()
+        self.server_ip = ip
+        self.server_port = port
+        #await for secure port
+
+        self.s_port = int(self.socket.recv(100).decode("utf-8").split(";")[1])
+        ssoc = self.connect(self.s_port,ip)
+        with context.wrap_socket(ssoc, server_hostname=hostname) as tls:
+
+            self.server_command_loop(self.socket, tls)
 
     def connect(self, port, ip, show_err = True) -> socket.socket:
         """Connect to server or to other client"""
@@ -38,7 +51,7 @@ class Client:
         self.socket.sendmsg([bytes("exit", "utf-8")])
         self.socket.close()
 
-    def server_command_loop(self):
+    def server_command_loop(self, soc, ssoc):
         """Reads User commands in a loop and sends then to connection."""
         while True:
             self._listen_messages()
@@ -52,19 +65,19 @@ class Client:
                 self.disconnect()
                 break
             if cmd[0] == "adduser":
-                if self._send_adduser(cmd[1:]) is not None:
+                if self._send_adduser(cmd[1:], ssoc) is not None:
                     continue
-                self._listen_adduserACK()
+                self._listen_adduserACK(ssoc)
 
             elif cmd[0] == "login":
-                if self._send_login(cmd[1:]) is not None:
+                if self._send_login(cmd[1:], ssoc) is not None:
                     continue
-                self._listen_loginACK()
+                self._listen_loginACK(ssoc)
 
             elif cmd[0] == "passwd":
-                if self._send_passwd(cmd[1:]) is not None:
+                if self._send_passwd(cmd[1:], ssoc) is not None:
                     continue
-                self._listen_passwdACK()
+                self._listen_passwdACK(ssoc)
 
             elif cmd[0] == "begin":
                 if self._send_begin(cmd[1:]) is not None:
@@ -280,7 +293,7 @@ class Client:
 
             elif msg[0] == "ping":
                print("Received a ping!")
-
+                
     # Mensagens
     def _send_play(self, p_x, p_y, soc):
         soc.sendmsg([bytes(
@@ -310,19 +323,19 @@ class Client:
                 bytes(f"{args[1]}","utf-8"),
             ])
 
-    def _send_login(self, args):
+    def _send_login(self, args, soc):
         if len(args) < 2:
             print("login usage:\n"
                   "\tlogin <usuário> <senha>")
             return 1
 
-        self.socket.sendmsg([
+        soc.sendmsg([
                 bytes("login;","utf-8"),
                 bytes(f"{args[0]};","utf-8"),
                 bytes(f"{args[1]}","utf-8"),
             ])
 
-    def _send_passwd(self, args):
+    def _send_passwd(self, args, soc):
         if len(args) < 2:
             print("passwd <senha antiga> <senha nova>")
             return
@@ -330,7 +343,7 @@ class Client:
             print("Você precisa estar logado para alterar a senha.")
             return
 
-        self.socket.sendmsg([
+        soc.sendmsg([
             bytes("passwd;", "utf-8"),
             bytes(f"{self.user_name};", "utf-8"),
             bytes(f"{args[0]};", "utf-8"),
@@ -347,8 +360,8 @@ class Client:
         else:
             print(f"begin failed, reason: {resp[1]}")
 
-    def _listen_loginACK(self):
-        resp = self.socket.recv(1024).decode("utf-8").split(";")
+    def _listen_loginACK(self, soc):
+        resp = soc.recv(1024).decode("utf-8").split(";")
         print(resp)
         if resp[0] == "loginACK":
             print("Login bem sucedido!")
@@ -356,15 +369,15 @@ class Client:
         else:
             print(f"login failed, reason: {resp[1]}")
 
-    def _listen_adduserACK(self):
-        resp = self.socket.recv(1024).decode("utf-8").split(";")
+    def _listen_adduserACK(self, soc):
+        resp = soc.recv(1024).decode("utf-8").split(";")
         if resp[0] == "adduserACK":
             print("Usuário adicionado")
         else:
             print(f"adduser failed, reason: {resp[1]}")
 
-    def _listen_passwdACK(self):
-        resp = self.socket.recv(1024).decode("utf-8").split(";")
+    def _listen_passwdACK(self, soc):
+        resp = soc.recv(1024).decode("utf-8").split(";")
         print("Listen passwdACK:", resp)
         if resp[0] == "passwdACK":
             print("Senha alterada com sucesso.")

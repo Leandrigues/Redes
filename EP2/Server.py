@@ -5,6 +5,10 @@ import signal
 import os
 from random import randint
 from datetime import datetime
+from ssl import SSLContext, PROTOCOL_TLS_SERVER
+
+context = SSLContext(PROTOCOL_TLS_SERVER)
+context.load_cert_chain('cert.pem', 'key.pem')
 
 class Server:
     """
@@ -21,12 +25,15 @@ class Server:
     t_usernames, t_sockets, t_addresses são dicionários indexados pelo thread id da conexão.
     """
     HOST = "127.0.0.1"
+    HOSTNAME="jogo-da-velha-server"
     USERSF = "users.txt"
     LOGF = "log.txt"
     logged_users = {}
     t_usernames = {}
     t_sockets = {}
+    t_ssl_sockets = {}
     t_addresses = {}
+    t_ssl_addresses = {}
     connections = []
     
     # user : (user, matched_user)
@@ -42,27 +49,29 @@ class Server:
         signal.signal(signal.SIGINT, self._signal_handler)
 
     def listen(self, port):
-        self._bind_port(port)
+        self._server_port = self._bind_port(port, self.socket)
 
         while True:
             self.socket.listen()
             conn, addr = self.socket.accept()
             self.connections.append(conn)
             self._write_log(f"Client connected from ip {addr[0]} and port {addr[1]}")
-            client_thread = threading.Thread(target=self._read_commands, args=(conn, addr))
+            client_thread = threading.Thread(target=self._establish_connection, args=(conn, addr))
             client_thread.start()
 
-    def _bind_port(self, port):
+    def _bind_port(self, port, soc, server=True):
         try:
-            self.socket.bind((Server.HOST, port))
+            soc.bind((Server.HOST, port))
         except OSError:
             port += randint(1, 99)
-            self.socket.bind((Server.HOST, port))
+            soc.bind((Server.HOST, port))
+
+        if server:
+            self._write_log(f"Server started listening in port {port}")
 
         print("Listening in port", port)
-
-
-        self._write_log(f"Server started listening in port {port}")
+        
+        return port
 
 
     def _signal_handler(self, sig, frame):
@@ -72,23 +81,56 @@ class Server:
         self.disconnect()
         os._exit(0)
 
-
     def disconnect_connected_clients(self):
         for conn in self.connections:
             print(f"Disconnecting {conn}")
             conn.sendmsg([bytes("disconnect", "utf-8")])
 
-    def _read_commands(self, conn, addr):
+    def _establish_connection(self, conn, addr):
         # adds connection reference
         self.set_socket(conn)
         print(f"conn: {conn}")
         self.set_addr(addr)
 
+        print("Received connection from", addr)
+        print("LOGGED: ", self.logged_users)
+
+        #Setup secure connection
+        ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        p = self._bind_port(self._server_port+1, ssoc, False)
+        
+        # Await for client to connect through ssl
+        conn.sendmsg([bytes(f"secport;{p}","utf-8")])
+        ssoc.listen()
+        with context.wrap_socket(ssoc, server_side=True) as tls:
+            sconn, saddr = tls.accept()
+            self.set_ssl_socket(sconn)
+            self.set_ssl_addr(saddr)
+
+            sconn.settimeout(0.5)
+            conn.settimeout(0.5)
+            self._read_commands(conn, addr, sconn, saddr)
+
+    def _read_commands(self, conn, addr, sconn, saddr):
+        
         # main loop
         while True:
-            print("Received connection from", addr)
-            print("LOGGED: ", self.logged_users)
-            data = conn.recv(1024)
+
+            sconn_timeout = False
+            conn_timeout = False
+            try:
+                data = sconn.recv(1024)
+            except socket.timeout as e:
+                sconn_timeout = True
+
+            try:
+                data = conn.recv(1024)
+            except socket.timeout as e:
+                conn_timeout = True
+
+            if conn_timeout and sconn_timeout:
+                continue
+
             if not data:
                 break
 
@@ -98,27 +140,36 @@ class Server:
 
             if msg[0] == "adduser":
                 resp = self._adduser(msg[1:])
+                r_soc = sconn
             elif msg[0] == "passwd":
                 resp = self._passwd(msg[1:])
+                r_soc = sconn
             elif msg[0] == "login":
                 resp = self._login(msg[1:], addr)
+                r_soc = sconn
             elif msg[0] == "list":
                 resp = self._list()
+                r_soc = conn
             elif msg[0] == "leaders":
                 resp = self._leaders()
+                r_soc = conn
             elif msg[0] == "begin":
                 resp = self._begin(msg[1:])
+                r_soc = conn
             elif msg[0] == "answer":
                 resp = self._answer(msg[1:])
+                r_soc = conn
             elif msg[0] == "exit":
                 resp = self.disconnect_user(addr)
                 break
             elif msg[0] == "logout":
                 resp = self.logout_user()
+                r_soc = sconn
             else:
                 resp = ['Comando Não Reconhecido']
+                r_soc = conn
             print(resp)
-            conn.sendmsg([bytes(";".join(resp),"utf-8")])
+            r_soc.sendmsg([bytes(";".join(resp),"utf-8")])
 
     # Message related methods
     def disconnect_user(self, addr):
@@ -328,6 +379,23 @@ class Server:
     def set_addr(self, addr):
         """Sets address associated with current thread"""
         Server.t_addresses[threading.get_ident()] = addr
+
+    def get_ssl_socket(self):
+        """Returns current thread associated ssl socket or None"""
+        print("THREADING IDENT:", threading.get_ident())
+        return Server.t_ssl_sockets.get(threading.get_ident())
+
+    def set_ssl_socket(self, socket):
+        """Sets ssl socket associated with current thread"""
+        Server.t_ssl_sockets[threading.get_ident()] = socket
+
+    def get_ssl_addr(self):
+        """Returns current address associated ssl socket or None"""
+        return Server.t_ssl_addresses.get(threading.get_ident())
+
+    def set_ssl_addr(self, addr):
+        """Sets ssl address associated with current thread"""
+        Server.t_ssl_addresses[threading.get_ident()] = addr
 
     def _write_log(self, log):
         with open(Server.LOGF, "a") as f:
