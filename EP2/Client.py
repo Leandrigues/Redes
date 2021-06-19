@@ -1,6 +1,7 @@
 import socket
+import time
+import threading
 from random import randint
-
 from Jogo import Jogo
 
 class Client:
@@ -11,6 +12,7 @@ class Client:
     def __init__(self):
         self.socket = None
         self.user_name = ''
+        self.delays = []
 
     def start(self,port,ip):
         """Connects to server and reads user input."""
@@ -69,9 +71,6 @@ class Client:
                     continue
                 self._listen_beginACK()
 
-            elif cmd[0] == "send":
-                print(f"{cmd[0]} not implemented yet :(")
-
             elif cmd[0] == "list":
                 self.socket.sendmsg([bytes(cmd[0],"utf-8")])
                 resp = self.socket.recv(1024).decode("utf-8")
@@ -96,18 +95,47 @@ class Client:
 
                 for username, score in leaderboard:
                     print(f"{username:^12}|  {int(score):3d}  |")
- 
-            elif cmd[0] == "logout":
-                self.socket.sendmsg([bytes(cmd[0],"utf-8")])
-                self._listen_logoutACK()
 
-            elif cmd[0] in ["delay","end"]:
+            elif cmd[0] in ["end"]:
                 self.socket.sendmsg([bytes(cmd[0],"utf-8")])
                 resp = self.socket.recv(1024).decode("utf-8")
                 print(resp)
 
             else:
                 print("Command not recognized.")
+
+    def _handle_ingame_comands(self, soc):
+        cmd = input(">").strip().split(" ")
+
+        if cmd[0] == "send":
+            return ["send", cmd[1], cmd[2]]
+
+        if cmd[0] == "delay":
+            size = len(self.delays)
+            delays = ', '.join(self.delays[-3:])
+            print("Delays:", delays)
+            return ["delay"]
+
+    def _get_delay(self, soc):
+        threading.Timer(2, self._get_delay, args=(soc,)).start()
+
+        before = time.time()
+        while True:
+            self._send_ping(soc)
+            try:
+                data = soc.recv(1024).decode("utf-8")
+                if data == "pong":
+                    after = time.time()
+                    self.delays.append(str(float(after) - float(before)))
+                    break
+            except Exception as e:
+                print(e)
+
+    def _send_ping(self, soc):
+        soc.sendmsg([bytes("ping", "utf-8")])
+
+    def _send_pong(sef, soc):
+        soc.sendmsg([bytes("pong", "utf-8")])
 
     def game_command_loop(self, soc : socket.socket, opponent:str, first_move=True):
         print("Entrou game_command_loop")
@@ -118,15 +146,19 @@ class Client:
         # inicia tabuleiro
         jogo = Jogo()
 
+        # Inicia a medição periódica de latência
+        threading.Thread(target=self._get_delay, args=(soc,)).start()
+
         # Se não é o primeiro jogador, espera a primeira jogada.
         turns = 0 if first_move else 1
 
         while jogo.terminou() is None:
-            print("Loop it")
             if turns % 2: # turnos pares, minha jogada
                 jogou = False
                 while not jogou:
-                    cmd = input(">").strip().split(" ")
+                    cmd = self._handle_ingame_comands(soc)
+                    if cmd[0] != "send":
+                        continue
                     if len(cmd) < 2:
                         print("Digite:\n> linha coluna")
                         continue
@@ -138,16 +170,20 @@ class Client:
                     else:
                         print("Posição inválida.")
             else:
-                
-                msg = soc.recv(1024).decode("utf-8")
+                msg = soc.recv(1024).decode("utf-8").split(";")[1:]
+
+                if len(msg) < 2:
+                    self._send_pong(soc)
+                    continue
+
                 print("Jogada recebida: ", msg)
-                p_x, p_y = msg.split(";")[1:]
+                p_x, p_y = msg
                 jogo.faz_jogada(int(p_x), int(p_y), self._op_simb)
 
             # fazer função de print para o jogo
             print(jogo)
             turns += 1
-        
+
         if jogo.terminou() == self._my_simb:
             print(f"Você perdeu o jogo contra {opponent}! X(")
             self.socket.sendmsg([bytes(f"result;{self.user_name};{opponent};LOST")])
@@ -157,7 +193,6 @@ class Client:
 
         self._listen_resultACK()
         print("Saiu game_command_loop")
-        
 
     def _bind_port(self, soc : socket.socket, port=3001) -> int:
         try:
@@ -242,6 +277,9 @@ class Client:
                 print("Received a disconnect message from server")
                 self.socket.close()
                 exit(1)
+
+            elif msg[0] == "ping":
+               print("Received a ping!")
 
     # Mensagens
     def _send_play(self, p_x, p_y, soc):
