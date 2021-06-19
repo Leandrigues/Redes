@@ -311,17 +311,13 @@ class Client:
                 bytes(f"{self.user_name}","utf-8"),
             ])
 
-    def _send_adduser(self, args):
+    def _send_adduser(self, args, soc):
         if len(args) < 2:
             print("adduser usage:\n"
                   "\tadduser <usuário> <senha>")
             return
 
-        self.socket.sendmsg([
-                bytes("adduser;","utf-8"),
-                bytes(f"{args[0]};","utf-8"),
-                bytes(f"{args[1]}","utf-8"),
-            ])
+        soc.sendall(bytes(f"adduser;{args[0]};{args[1]}","utf-8"))
 
     def _send_login(self, args, soc):
         if len(args) < 2:
@@ -329,11 +325,9 @@ class Client:
                   "\tlogin <usuário> <senha>")
             return 1
 
-        soc.sendmsg([
-                bytes("login;","utf-8"),
-                bytes(f"{args[0]};","utf-8"),
-                bytes(f"{args[1]}","utf-8"),
-            ])
+        soc.sendall(
+                bytes(f"login;{args[0]};{args[1]}","utf-8"),
+            )
 
     def _send_passwd(self, args, soc):
         if len(args) < 2:
@@ -343,12 +337,9 @@ class Client:
             print("Você precisa estar logado para alterar a senha.")
             return
 
-        soc.sendmsg([
-            bytes("passwd;", "utf-8"),
-            bytes(f"{self.user_name};", "utf-8"),
-            bytes(f"{args[0]};", "utf-8"),
-            bytes(f"{args[1]}", "utf-8"),
-        ])
+        soc.sendall(
+            bytes(f"passwd;{self.user_name};{args[0]};{args[1]}", "utf-8"),
+        )
 
     # Respostas
     def _listen_beginACK(self):

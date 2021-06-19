@@ -169,7 +169,7 @@ class Server:
                 resp = ['Comando Não Reconhecido']
                 r_soc = conn
             print(resp)
-            r_soc.sendmsg([bytes(";".join(resp),"utf-8")])
+            r_soc.sendall(bytes(";".join(resp),"utf-8"))
 
     # Message related methods
     def disconnect_user(self, addr):
