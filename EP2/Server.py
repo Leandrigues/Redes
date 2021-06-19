@@ -194,7 +194,7 @@ class Server:
         print(f"inviting user in connection: {u_socket}")
         u_socket.sendmsg([bytes(f"invite;{sender}","utf-8")])
 
-    def answer_user(self, u_socket, accept, sender_name, sender_port=None):
+    def answer_user(self, u_socket, accept, sender_name, ping_port, sender_port=None):
         print(f"Answering user in connection: {u_socket}")
         receiver_name = self.get_uname()
         receiver_conn = Server.logged_users[receiver_name].getpeername()
@@ -203,7 +203,7 @@ class Server:
         answer_string = f"answer;{self.get_uname()};{accept}"
         if accept:
             self._write_log(f"A game was started between {receiver_name} {receiver_conn} and {sender_name} {sender_conn}")
-            answer_string += f";{self.get_addr()[0]};{sender_port}"
+            answer_string += f";{self.get_addr()[0]};{sender_port};{ping_port}"
             self.current_matches[sender_name] = self.get_uname()
             self.current_matches[self.get_uname()] = sender_name
 
@@ -219,10 +219,11 @@ class Server:
         user_to_answer, accept = args[:2]
         sender_port = args[2] if len(args) > 2 else None
         sender_user_name = args[3]
+        ping_port = args[4]
 
         print("USERNAMES:", Server.logged_users)
         if user_to_answer in Server.logged_users:
-            self.answer_user(Server.logged_users[user_to_answer], accept, sender_user_name, sender_port)
+            self.answer_user(Server.logged_users[user_to_answer], accept, sender_user_name, ping_port, sender_port)
             return ["answerACK"]
 
         return ["answerERR", "User not connected, can't respond"]

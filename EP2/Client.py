@@ -17,6 +17,7 @@ class Client:
         self.socket = None
         self.user_name = ''
         self.delays = []
+        self.buffer = None
 
     def start(self,port,ip):
         """Connects to server and reads user input."""
@@ -38,8 +39,9 @@ class Client:
         try:
             soc = socket.create_connection((ip,port))
         except Exception as e:
-            print(f"Exception: {e}")
-            print(f"Could not connect to address {ip}:{port}")
+            if show_err:
+                print(f"Exception: {e}")
+                print(f"Could not connect to address {ip}:{port}")
             soc = None
 
         return soc
@@ -118,31 +120,18 @@ class Client:
                 print("Command not recognized.")
 
     def _handle_ingame_comands(self, soc):
-        cmd = input(">").strip().split(" ")
 
-        if cmd[0] == "send":
-            return ["send", cmd[1], cmd[2]]
-
-        if cmd[0] == "delay":
-            size = len(self.delays)
-            delays = ', '.join(self.delays[-3:])
-            print("Delays:", delays)
-            return ["delay"]
-
-    def _get_delay(self, soc):
-        threading.Timer(2, self._get_delay, args=(soc,)).start()
-
-        before = time.time()
         while True:
-            self._send_ping(soc)
-            try:
-                data = soc.recv(1024).decode("utf-8")
-                if data == "pong":
-                    after = time.time()
-                    self.delays.append(str(float(after) - float(before)))
-                    break
-            except Exception as e:
-                print(e)
+            cmd = input(">").strip().split(" ")
+            if cmd[0] == "send":
+                return ["send", cmd[1], cmd[2]]
+
+            if cmd[0] == "delay":
+                size = len(self.delays)
+                delays = ', '.join(self.delays[-3:])
+                print("Delays:", delays)
+                return ["delay"]
+
 
     def _send_ping(self, soc):
         soc.sendmsg([bytes("ping", "utf-8")])
@@ -150,7 +139,34 @@ class Client:
     def _send_pong(sef, soc):
         soc.sendmsg([bytes("pong", "utf-8")])
 
-    def game_command_loop(self, soc : socket.socket, opponent:str, first_move=True):
+    def _get_delay(self, soc):
+        self._send_ping(soc)
+        before = time.time()
+        while True:
+            if self.buffer is not None and self.buffer == "pong":
+                # print("Read pong from buffer")
+                self.buffer = None
+                after = time.time()
+                self.delays.append(str(float(after) - float(before)))
+                break
+
+        threading.Timer(3, self._get_delay, args=(soc,)).start()
+
+
+    def _read_pings(self, soc):
+        while True:
+            data = soc.recv(1024).decode("utf-8")
+            if data == "ping":
+                # print("Received a ping")
+                soc.sendmsg([bytes("pong", "utf-8")])
+            elif data == "pong":
+                # print("Received a pong")
+                self.buffer = "pong"
+            else:
+                print("Unexpected data:", data)
+
+
+    def game_command_loop(self, soc : socket.socket, ping_socket, opponent:str, first_move=True):
         print("Entrou game_command_loop")
 
         self._my_simb = Jogo.SIMBOLOS[0 if first_move else 1]
@@ -160,7 +176,8 @@ class Client:
         jogo = Jogo()
 
         # Inicia a medição periódica de latência
-        threading.Thread(target=self._get_delay, args=(soc,)).start()
+        threading.Thread(target=self._read_pings, args=(ping_socket,)).start()
+        threading.Thread(target=self._get_delay, args=(ping_socket,)).start()
 
         # Se não é o primeiro jogador, espera a primeira jogada.
         turns = 0 if first_move else 1
@@ -219,9 +236,9 @@ class Client:
         return port
 
 
-    def _get_match_socket(self):
+    def _get_match_socket(self, port=3002):
         new_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        new_port = self._bind_port(new_socket)
+        new_port = self._bind_port(new_socket, port)
         return new_socket, new_port
 
 
@@ -242,32 +259,48 @@ class Client:
             msg = msg.decode("utf-8").split(";")
 
             if msg[0] == "invite":
-                #TODO: add validation here 
+                # TODO: add validation here
                 user = msg[1]
                 print(f"Received an invitation from: {user}")
                 accept = input("Aceitar?\n[S/n]: ")
                 if accept == "S":
                     print(f"Iniciando conexão com {user}")
-                    self._match_socket, port = self._get_match_socket()
-
-                    self.socket.sendmsg([   
-                        bytes(f"answer;{user};True;{port};{self.user_name}", "utf-8")
+                    self._match_socket, match_port = self._get_match_socket()
+                    self._ping_socket, ping_port = self._get_match_socket(3099)
+                    print("PING SOCKET:", self._ping_socket)
+                    self.socket.sendmsg([
+                        bytes(f"answer;{user};True;{match_port};{self.user_name};{ping_port}", "utf-8")
                     ])
+
                     print("Resposta enviada; Esperando conexão.")
+
                     self._match_socket.settimeout(Client.MATCHTIMEOUT)
                     try:
                         self._match_socket.listen()
-                        conn, addr = self._match_socket.accept()
+                        conn_match, addr = self._match_socket.accept()
                     except socket.timeout as e:
-                        conn = addr = None
+                        conn_match = addr = None
+                        print(e)
 
-                    if conn is None:
+                    if conn_match is None:
                         print("Conexão não foi recebida =(")
-                    else:
-                        print("Iniciando jogo!")
-                        self.game_command_loop(conn, user)
+                        raise Exception
 
-                    # Se preparar para conexão
+                    # self._ping_socket.settimeout(Client.MATCHTIMEOUT)
+                    try:
+                        self._ping_socket.listen()
+                        conn_ping, addr_ping = self._ping_socket.accept()
+                        print("Connection ping accepted:", conn_ping)
+                    except socket.timeout as e:
+                        # raise e
+                        print(e)
+                    if conn_ping is None:
+                        print("CONN PING IS NONE")
+                        exit(0)
+
+                    print("Iniciando jogo!")
+                    self.game_command_loop(conn_match, conn_ping, user)
+
                 else:
                     print(f"Recusando convite de {user}")
                     self.socket.sendmsg([
@@ -279,10 +312,18 @@ class Client:
                 if accept == "True":
                     print(f"User {user} has accepted your invite for a game :D")
                     print(msg)
-                    addr,port = msg[3:5]
-                    print(f"Connecting to user in {addr}:{port}")
-                    conn = self.connect(port,addr,False)
-                    self.game_command_loop(conn, user, False)
+                    addr, match_port, ping_port = msg[3:6]
+                    print(f"Connecting to user in {addr}:{match_port} and ping port {ping_port}")
+                    conn_match = self.connect(match_port, addr, False)
+                    conn_ping = self.connect(ping_port, addr, True)
+
+                    # Retry until it connects
+                    while conn_match is None:
+                        conn_match = self.connect(match_port, addr, False)
+                    while conn_ping is None:
+                        conn_ping = self.connect(ping_port, addr, False)
+
+                    self.game_command_loop(conn_match, conn_ping, user, False)
                 else:
                     print(f"User {user} has declined your invite for a game =(")
 
