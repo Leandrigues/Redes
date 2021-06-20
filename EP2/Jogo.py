@@ -57,11 +57,11 @@ class Jogo():
         assert self.pode_jogar(pos_x, pos_y), \
             f"Posição ({pos_x},{pos_y}) já preenchida."
 
-        self.tabuleiro[pos_y][pos_x] = simb
-    
+        self.tabuleiro[pos_x][pos_y] = simb
+
     def pode_jogar(self, pos_x, pos_y):
         """Verifica se a posição está livre"""
         assert pos_x >= 0 and pos_x < 3, f"pos_x com valor invalido: {pos_x}"
         assert pos_y >= 0 and pos_y < 3, f"pos_y com valor invalido: {pos_y}"
 
-        return self.tabuleiro[pos_y][pos_x] == ''
+        return self.tabuleiro[pos_x][pos_y] == ''

@@ -78,7 +78,7 @@ class Server:
         if server:
             self._write_log(f"Server started listening in port {port}")
 
-        print(f"Ouvindo na porta {port}")
+        print(f"Porta {port} vinculada a um socket")
 
         return port
 
@@ -278,7 +278,7 @@ class Server:
         else:
             sender_port = sender_user_name = ping_port = None
 
-        _print("Usernames:", Server.logged_users)
+        _print(f"Usernames: {Server.logged_users}")
         if user_to_answer in Server.logged_users:
             self.answer_user(Server.logged_users[user_to_answer], accept, sender_user_name, ping_port, sender_port)
             return ["answerACK"]

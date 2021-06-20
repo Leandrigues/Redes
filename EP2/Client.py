@@ -8,6 +8,12 @@ from ssl import SSLContext, PROTOCOL_TLS_CLIENT
 context = SSLContext(PROTOCOL_TLS_CLIENT)
 context.load_verify_locations('cert.pem')
 
+DEBUG=False
+
+def _print(msg):
+    if DEBUG:
+        print(msg)
+
 class Client:
     """Classe que representa um Cliente"""
     MYADDR="127.0.0.1"
@@ -27,8 +33,8 @@ class Client:
         threading.Thread(target=self.start_ping).start()
         self.server_ip = ip
         self.server_port = port
-        #await for secure port
 
+        #await for secure port
         self.s_port = int(self.socket.recv(100).decode("utf-8").split(";")[1])
         ssoc = self.connect(self.s_port,ip)
         with context.wrap_socket(ssoc, server_hostname=hostname) as tls:
@@ -36,18 +42,14 @@ class Client:
             self.server_command_loop(self.socket, tls)
 
     def start_ping(self):
-        print("Starting ping socket")
+        _print("Iniciando socket de ping")
         self.ping_socket, self.ping_port = self._get_socket(8080)
         try:
             self.ping_socket.listen()
             self.conn_ping, addr_ping = self.ping_socket.accept()
-            print("Connection ping accepted:", self.conn_ping)
+            _print(f"Conexão com o socket feita: {self.conn_ping}")
         except socket.timeout as e:
-            # raise e
-            print(e)
-        if self.conn_ping is None:
-            print("CONN PING IS NONE")
-            exit(0)
+            _print(e)
         self._read_heartbeat(self.conn_ping)
 
     def _read_heartbeat(self, soc):
@@ -63,14 +65,14 @@ class Client:
             soc = socket.create_connection((ip,port))
         except Exception as e:
             if show_err:
-                print(f"Exception: {e}")
-                print(f"Could not connect to address {ip}:{port}")
+                _print(f"Exception: {e}")
+                _print(f"Não foi possível de conectar a {ip}:{port}")
             soc = None
 
         return soc
 
     def disconnect(self):
-        print("Closing socket")
+        _print("Closing socket")
 
         #Sends Empty message to indicate connection closing
         self.socket.sendmsg([bytes("exit", "utf-8")])
@@ -88,7 +90,7 @@ class Client:
 
             if not cmd: # Empty string
                 continue
-            print("cmd: ",cmd)
+            _print(f"cmd: {cmd}")
 
             if cmd[0] == "exit":
                 self.disconnect()
@@ -118,7 +120,7 @@ class Client:
                 resp = self.socket.recv(1024).decode("utf-8")
 
                 print("-"*30 + 
-                      "\nUsers currently logged in:\n" +
+                      "\nUsuários conectados:\n" +
                       "-"*30)
 
                 for u in resp.split(";")[1:]:
@@ -144,10 +146,9 @@ class Client:
                 print(resp)
 
             else:
-                print("Command not recognized.")
+                print("Comando não reconhecido")
 
     def _handle_ingame_comands(self, soc):
-
         while True:
             cmd = input(">").strip().split(" ")
             if cmd[0] == "send":
@@ -158,9 +159,10 @@ class Client:
             if cmd[0] == "delay":
                 size = len(self.delays)
                 delays = ', '.join(self.delays[-3:])
-                print("Delays:", delays)
+                print(f"Últimas latências medidas: {delays}")
                 return ["delay"]
-
+            else:
+                print("Comando não reconhecido")
 
     def _send_ping(self, soc):
         soc.sendmsg([bytes("ping", "utf-8")])
@@ -173,7 +175,6 @@ class Client:
         before = time.time()
         while True:
             if self.buffer is not None and self.buffer == "pong":
-                # print("Read pong from buffer")
                 self.buffer = None
                 after = time.time()
                 self.delays.append(str(float(after) - float(before)))
@@ -186,19 +187,19 @@ class Client:
         while True:
             data = soc.recv(1024).decode("utf-8")
             if data == "ping":
-                # print("Received a ping")
+                _print("Ping recebido")
                 soc.sendmsg([bytes("pong", "utf-8")])
             elif data == "pong":
-                # print("Received a pong")
+                _print("Pong recebido")
                 self.buffer = "pong"
             else:
-                print("Unexpected data:", data)
-                print("Closing connection.")
+                _print(f"Dado inesperado: {data}")
+                _print("Fechando conexão")
                 soc.close()
 
 
     def game_command_loop(self, soc : socket.socket, ping_socket, opponent:str, first_move=True):
-        print("Entrou game_command_loop")
+        _print("Entrou game_command_loop")
 
         self._my_simb = Jogo.SIMBOLOS[0 if first_move else 1]
         self._op_simb = Jogo.SIMBOLOS[1 if first_move else 0]
@@ -221,7 +222,7 @@ class Client:
                     if cmd[0] != "send":
                         continue
                     if len(cmd) < 2:
-                        print("Digite:\n> linha coluna")
+                        print("Digite:\n> send linha coluna")
                         continue
                     p_x, p_y = cmd[1:]
                     if jogo.pode_jogar(int(p_x), int(p_y)):
@@ -237,11 +238,11 @@ class Client:
                     self._send_pong(soc)
                     continue
 
-                print("Jogada recebida: ", msg)
+                _print(f"Jogada recebida: {msg}")
                 p_x, p_y = msg
                 jogo.faz_jogada(int(p_x), int(p_y), self._op_simb)
 
-            # fazer função de print para o jogo
+            # fazer função de _print para o jogo
             print(jogo)
             turns += 1
 
@@ -251,18 +252,18 @@ class Client:
         else:
             print(f"Você ganhou o jogo contra {opponent}! :D")
             self.socket.sendmsg([bytes(f"result;{self.user_name};{opponent};WIN","utf-8")])
-        
+
         self._listen_resultACK()
-        print("Saiu game_command_loop")
+        _print("Saiu game_command_loop")
 
     def _bind_port(self, soc : socket.socket, port=3001) -> int:
         try:
             soc.bind((Client.MYADDR, port))
-            print("Listening in port", port)
+            _print(f"Ouvindo na porta {port}")
         except OSError:
             port += randint(1, 99)
             soc.bind((Client.MYADDR, port))
-            print("Listening in port", port)
+            _print(f"Ouvindo na porta {port}")
 
         return port
 
@@ -285,20 +286,20 @@ class Client:
 
         self.socket.settimeout(socket.getdefaulttimeout())
 
-        print(f"Message: {msg}")
+        _print(f"Message: {msg}")
         if msg is not None:
             msg = msg.decode("utf-8").split(";")
 
             if msg[0] == "invite":
                 # TODO: add validation here
                 user = msg[1]
-                print(f"Received an invitation from: {user}")
+                _print(f"{user} te convidou para jogar!")
                 accept = input("Aceitar?\n[S/n]: ")
                 if accept == "S":
-                    print(f"Iniciando conexão com {user}")
+                    _print(f"Iniciando conexão com {user}")
                     self._match_socket, match_port = self._get_socket()
                     self._ping_socket, ping_port = self._get_socket(3099)
-                    print("PING SOCKET:", self._ping_socket)
+                    _print(f"PING SOCKET: {self._ping_socket}")
                     self.socket.sendmsg([
                         bytes(f"answer;{user};True;{match_port};{self.user_name};{ping_port}", "utf-8")
                     ])
@@ -313,29 +314,26 @@ class Client:
                         conn_match, addr = self._match_socket.accept()
                     except socket.timeout as e:
                         conn_match = addr = None
-                        print(e)
+                        _print(e)
 
                     if conn_match is None:
-                        print("Conexão não foi recebida =(")
+                        _print("Conexão não foi recebida =(")
                         raise Exception
 
                     # self._ping_socket.settimeout(Client.MATCHTIMEOUT)
                     try:
                         self._ping_socket.listen()
                         conn_ping, addr_ping = self._ping_socket.accept()
-                        print("Connection ping accepted:", conn_ping)
+                        _print(f"Conexão com ping aceita: {conn_ping}")
                     except socket.timeout as e:
                         # raise e
-                        print(e)
-                    if conn_ping is None:
-                        print("CONN PING IS NONE")
-                        exit(0)
+                        _print(e)
 
                     print("Iniciando jogo!")
                     self.game_command_loop(conn_match, conn_ping, user)
 
                 else:
-                    print(f"Recusando convite de {user}")
+                    print(f"Convite de {user} recusado.")
                     self.socket.sendmsg([
                         bytes(f"answer;{user};False", "utf-8")
                     ])
@@ -343,10 +341,10 @@ class Client:
             elif msg[0] == "answer":
                 user,accept = msg[1:3]
                 if accept == "True":
-                    print(f"User {user} has accepted your invite for a game :D")
-                    print(msg)
+                    print(f"{user} aceitou seu convite para jogar :D")
+                    _print(msg)
                     addr, match_port, ping_port = msg[3:6]
-                    print(f"Connecting to user in {addr}:{match_port} and ping port {ping_port}")
+                    _print(f"Conectando com usuário em {addr}:{match_port}")
                     conn_match = self.connect(match_port, addr, False)
                     conn_ping = self.connect(ping_port, addr, True)
 
@@ -358,10 +356,10 @@ class Client:
 
                     self.game_command_loop(conn_match, conn_ping, user, False)
                 else:
-                    print(f"User {user} has declined your invite for a game =(")
+                    print(f"{user} recusou seu convite =(")
 
             elif msg[0] == "disconnect":
-                print("Received a disconnect message from server")
+                _print("Mensagem de desconexão recebida do servidor.")
                 self.socket.close()
                 exit(1)
 
@@ -372,7 +370,7 @@ class Client:
 
     def _send_begin(self, args):
         if len(args) < 1:
-            print("begin usage:\n"
+            print("begin:\n"
                   "\tbegin <usuário>")
             return
 
@@ -384,7 +382,7 @@ class Client:
 
     def _send_adduser(self, args, soc):
         if len(args) < 2:
-            print("adduser usage:\n"
+            print("adduser:\n"
                   "\tadduser <usuário> <senha>")
             return
 
@@ -392,7 +390,7 @@ class Client:
 
     def _send_login(self, args, soc):
         if len(args) < 2:
-            print("login usage:\n"
+            print("login:\n"
                   "\tlogin <usuário> <senha>")
             return 1
 
@@ -419,54 +417,54 @@ class Client:
         if resp[0] == "beginACK":
             print("Begin bem sucedido!")
         else:
-            print(f"begin failed, reason: {resp[1]}")
+            print(f"begin falhou, motivo: {resp[1]}")
 
     def _listen_answerACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
-        print(resp)
+        _print(resp)
         if resp[0] == "answerACK":
-            print("Answer bem sucedido!")
+            _print("Answer bem sucedido!")
             return
         else:
-            print(f"Answer failed, reason: {resp[1]}")
+            _print(f"answer falhou, motivo: {resp[1]}")
             return 1
 
 
     def _listen_loginACK(self, soc):
         resp = soc.recv(1024).decode("utf-8").split(";")
-        print(resp)
+        _print(resp)
         if resp[0] == "loginACK":
             print("Login bem sucedido!")
             self.user_name = resp[1]
         else:
-            print(f"login failed, reason: {resp[1]}")
+            print(f"login falhou, motivo: {resp[1]}")
 
     def _listen_adduserACK(self, soc):
         resp = soc.recv(1024).decode("utf-8").split(";")
         if resp[0] == "adduserACK":
             print("Usuário adicionado")
         else:
-            print(f"adduser failed, reason: {resp[1]}")
+            print(f"adduser falhou com a mensagem:{resp[1]}")
 
     def _listen_passwdACK(self, soc):
         resp = soc.recv(1024).decode("utf-8").split(";")
-        print("Listen passwdACK:", resp)
+        _print(f"Listen passwdACK: {resp}")
         if resp[0] == "passwdACK":
             print("Senha alterada com sucesso.")
         else:
-            print("Falha ao alterar senha. Motivo:", resp[1])
+            print(f"passwd falhou, motivo: {resp[1]}")
 
     def _listen_resultACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
-        print("Listen resultACK:", resp)
+        _print(f"Listen resultACK: {resp}")
         if resp[0] == "resultACK":
             print("Resultado reportado com sucesso.")
         else:
-            print("Falha ao reportar resultado. Motivo:", resp[1])
+            print(f"Falha ao reportar resultado, motivo: {resp[1]}")
 
     def _listen_logoutACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
-        print(resp[0])
+        _print(resp[0])
 
         if resp[0] == "logoutACK":
             self.user_name = ''
