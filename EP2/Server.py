@@ -60,21 +60,20 @@ class Server:
             conn, addr = self.socket.accept()
             self.connections.append(conn)
             self._write_log(f"Client connected from ip {addr[0]} and port {addr[1]}")
-            client_thread = threading.Thread(target=self._establish_connection, args=(conn, addr))
-            client_thread.start()
+            threading.Thread(target=self._establish_connection, args=(conn, addr)).start()
 
     def _bind_port(self, port, soc, server=True):
         try:
-            soc.bind((Server.HOST, port))
+            soc.bind((Server.HOST, int(port)))
         except OSError:
             port += randint(1, 99)
-            soc.bind((Server.HOST, port))
+            soc.bind((Server.HOST, int(port)))
 
         if server:
             self._write_log(f"Server started listening in port {port}")
 
         print("Listening in port", port)
-        
+
         return port
 
 
@@ -102,7 +101,7 @@ class Server:
         #Setup secure connection
         ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         p = self._bind_port(self._server_port+1, ssoc, False)
-        
+
         # Await for client to connect through ssl
         conn.sendmsg([bytes(f"secport;{p}","utf-8")])
         ssoc.listen()
@@ -115,8 +114,41 @@ class Server:
             conn.settimeout(0.5)
             self._read_commands(conn, addr, sconn, saddr)
 
+    def start_heartbeat(self, socket):
+        self.send_ping(socket)
+        socket.settimeout(3)
+        try:
+            data = socket.recv(1024).decode("utf-8")
+            print(f"HEARTBEAT: Received {data}")
+        except socket.timeout as e:
+            print("Timeout in heartbeat")
+
+        threading.Timer(10, self.start_heartbeat, args=(socket,)).start()
+
+    def send_ping(self, socket):
+        print("Sending ping")
+        socket.sendmsg([bytes("ping", "utf-8")])
+
+    def start_ping_socket(self, port):
+        try:
+            print("Connecting to port", port)
+            ping_socket = socket.create_connection((self.HOST, port))
+        except Exception as e:
+            print(f"Exception: {e}")
+            print(f"Could not connect to address {self.HOST}:{port}")
+
+        self.start_heartbeat(ping_socket)
+
+    def start_communication(self, conn):
+        # Defines ping port
+        data = conn.recv(1024).decode("utf-8").split(';')
+        ping_port = data[0]
+        print("Ping port will be:", ping_port)
+        threading.Thread(target=self.start_ping_socket, args=(ping_port,)).start()
+
     def _read_commands(self, conn, addr, sconn, saddr):
-        
+        self.start_communication(conn)
+
         # main loop
         while True:
 
@@ -129,6 +161,7 @@ class Server:
 
             try:
                 data = conn.recv(1024)
+
             except socket.timeout as e:
                 conn_timeout = True
 

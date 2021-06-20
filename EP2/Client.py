@@ -24,6 +24,7 @@ class Client:
 
         hostname="jogo-da-velha-server"
         self.socket = self.connect(port,ip)
+        threading.Thread(target=self.start_ping).start()
         self.server_ip = ip
         self.server_port = port
         #await for secure port
@@ -33,6 +34,24 @@ class Client:
         with context.wrap_socket(ssoc, server_hostname=hostname) as tls:
 
             self.server_command_loop(self.socket, tls)
+
+    def start_ping(self):
+        print("Starting ping socket")
+        self.ping_socket, self.ping_port = self._get_socket(8080)
+        try:
+            self.ping_socket.listen()
+            self.conn_ping, addr_ping = self.ping_socket.accept()
+            print("Connection ping accepted:", self.conn_ping)
+        except socket.timeout as e:
+            # raise e
+            print(e)
+        if self.conn_ping is None:
+            print("CONN PING IS NONE")
+            exit(0)
+        self._read_pings(self.conn_ping)
+        # data = self.conn_ping.recv(1024).decode("utf-8")
+        # print(f"Received {data} in ping socket")
+
 
     def connect(self, port, ip, show_err = True) -> socket.socket:
         """Connect to server or to other client"""
@@ -53,8 +72,12 @@ class Client:
         self.socket.sendmsg([bytes("exit", "utf-8")])
         self.socket.close()
 
+    def start_communication(self):
+        self.socket.sendmsg([bytes(f"{self.ping_port}", "utf-8")])
+
     def server_command_loop(self, soc, ssoc):
         """Reads User commands in a loop and sends then to connection."""
+        self.start_communication()
         while True:
             self._listen_messages()
             cmd = input(">").split(" ")
@@ -159,7 +182,7 @@ class Client:
         while True:
             data = soc.recv(1024).decode("utf-8")
             if data == "ping":
-                # print("Received a ping")
+                print("Received a ping")
                 soc.sendmsg([bytes("pong", "utf-8")])
             elif data == "pong":
                 # print("Received a pong")
@@ -240,7 +263,7 @@ class Client:
         return port
 
 
-    def _get_match_socket(self, port=3002):
+    def _get_socket(self, port=3002):
         new_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         new_port = self._bind_port(new_socket, port)
         return new_socket, new_port
@@ -269,8 +292,8 @@ class Client:
                 accept = input("Aceitar?\n[S/n]: ")
                 if accept == "S":
                     print(f"Iniciando conexão com {user}")
-                    self._match_socket, match_port = self._get_match_socket()
-                    self._ping_socket, ping_port = self._get_match_socket(3099)
+                    self._match_socket, match_port = self._get_socket()
+                    self._ping_socket, ping_port = self._get_socket(3099)
                     print("PING SOCKET:", self._ping_socket)
                     self.socket.sendmsg([
                         bytes(f"answer;{user};True;{match_port};{self.user_name};{ping_port}", "utf-8")
