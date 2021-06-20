@@ -122,6 +122,7 @@ class Server:
     def start_heartbeat(self, socket):
         if self.send_ping(socket) is None:
             self._write_log(f"Client in socket {socket} disconnected. Verified by heatbeat")
+            socket.close()
             return
         socket.settimeout(3)
         try:
@@ -129,6 +130,7 @@ class Server:
             if data != "pong":
                 _print(f"Socket {socket} não está respondendo")
                 self._write_log(f"Client in socket {socket} disconnected. Verified by heatbeat")
+                socket.close()
                 return
         except Exception as e:
             _print(f"Socket {socket} não está respondendo")
@@ -142,7 +144,7 @@ class Server:
         try:
             socket.sendmsg([bytes("ping", "utf-8")])
             return "ok"
-        except BrokenPipeError as e:
+        except Exception as e:
             return
 
 
