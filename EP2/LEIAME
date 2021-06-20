@@ -1,11 +1,87 @@
 # EP2
 
-## Participantes:
+### Participantes:
 
 Caio Fontes - 10692061
 Leandro Rodrigues - 10723944
 
-## Implementação
-Execute `python3 start.py <port>`. Porta padrão = 3000
+### Versão
+Os programas foram desenvolvidos utilizando a versão 3.9.5 do Python, sem uso de bibliotecas além das nativas da linguagem.
 
-Para testar, execute `telnet 127.0.0.1 <port>` e escreva algumas palavras no terminal.
+### Execução
+Para executar o servidor e um cliente, basta rodar
+
+```
+make port=XXXX
+```
+
+caso `port`  não seja especificado, o servidor utilizará a porta 3000.
+
+### Execução do servidor:
+
+```
+python3 start_server.py <porta>
+```
+
+Caso uma não seja especificada, a porta 3000 será utilizada.
+
+### Execução de um cliente:
+
+```
+python3 start_client.py
+```
+
+#### Geração de credenciais
+
+```
+openssl req -new -x509 -days 365 -nodes -out cert.pem -keyout key.pem -subj "/C=BR/ST=Sao Paulo/L=Sao Paulo/CN=jogo-da-velha-server/"
+```
+
+### Interação e limitações
+O programa do cliente ficará aguardando por comandos do usuário. Nos casos em que se espera receber uma mensagem de outro cliente,
+o programa possui uma limitação: para que a mensagem recebida apareça na tela, é necessário que o usuário envie um comando vazio para
+desbloquear a saída padrão usada pelo input (apenas pressione enter). Exemplo:
+
+```
+$ python3 start_client.py
+> adduser daniel 123456
+> login daniel
+> begin fulano # Aqui, um convite é enviado para o usuário 'fulano'. Para que receba a resposta do outro usuário sobre esse convite, é necessário apertar enter após o outro usuário efetuar a ação
+>
+fulano aceitou seu convite para jogar! :D
+> ...
+```
+
+### Depuração
+
+Para ler as mensagens de depuração nos códigos, basta alterar o valor da flag `DEBUG` nos dois arquivos para `True`.
+
+### Arquivos gerados
+
+Um arquivo `users.txt` será gerado para armazenamento de login/senha dos usuários, e um arquivo `log.txt` para guardas logs das execuções.
+
+### Comandos implementados
+
+`adduser <usuario> <senha>` - Registra um usuário no sistema
+
+`login <user> <senha>` - Faz login de um usuário
+
+`passwd <senha antiga> <senha nova>` - Altera a senha de um usuário logado
+
+`leaders` - Informa a tabela de pontuação dos usuários cadastrados
+
+`list` - Lista os usuários conectados
+
+`begin <oponente>` - Envia um convite de partida para um oponente
+
+`send <linha> <coluna>` - Durante uma partida, envia uma jogada
+
+`delay` - Solicita os três últimos delays (se existirem) medidos entre usuários
+
+`end` - Encerra uma partida antes da hora
+
+`logout` -  Desloga um usuário
+
+`exit`: - Finaliza o programa do cliente
+
+Para mais detalhes de documentação dos comandos, e sobre o protocolo criado, veja o arquivo `pacote.txt`.
