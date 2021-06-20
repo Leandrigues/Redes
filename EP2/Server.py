@@ -10,6 +10,12 @@ from ssl import SSLContext, PROTOCOL_TLS_SERVER
 context = SSLContext(PROTOCOL_TLS_SERVER)
 context.load_cert_chain('cert.pem', 'key.pem')
 
+DEBUG=False
+
+def _print(msg):
+    if DEBUG:
+        print(msg)
+
 class Server:
     """
     Usuários já cadastrados ficam armazenados no arquivo users.txt, no
@@ -35,7 +41,7 @@ class Server:
     t_addresses = {}
     t_ssl_addresses = {}
     connections = []
-    
+
     # user : (user, matched_user)
     current_matches = {}
 
@@ -72,13 +78,13 @@ class Server:
         if server:
             self._write_log(f"Server started listening in port {port}")
 
-        print("Listening in port", port)
+        print(f"Ouvindo na porta {port}")
 
         return port
 
 
     def _signal_handler(self, sig, frame):
-        print("Received a CTRL+C")
+        print("Server finalizando por receber CTRL+C")
         self._write_log(f"Server shutting down")
         self.disconnect_connected_clients()
         self.disconnect()
@@ -86,17 +92,16 @@ class Server:
 
     def disconnect_connected_clients(self):
         for conn in self.connections:
-            print(f"Disconnecting {conn}")
+            _print(f"Desconectado {conn}")
             conn.sendmsg([bytes("disconnect", "utf-8")])
 
     def _establish_connection(self, conn, addr):
         # adds connection reference
         self.set_socket(conn)
-        print(f"conn: {conn}")
+        _print(f"conn: {conn}")
         self.set_addr(addr)
 
-        print("Received connection from", addr)
-        print("LOGGED: ", self.logged_users)
+        _print(f"Conexão recebida de {addr}")
 
         #Setup secure connection
         ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -116,37 +121,37 @@ class Server:
 
     def start_heartbeat(self, socket):
         if self.send_ping(socket) is None:
+            self._write_log(f"Client in socket {socket} disconnected. Verified by heatbeat")
             return
         socket.settimeout(3)
         try:
             data = socket.recv(1024).decode("utf-8")
             if data != "pong":
+                _print(f"Socket {socket} não está respondendo")
+                self._write_log(f"Client in socket {socket} disconnected. Verified by heatbeat")
                 return
         except Exception as e:
-            print(e)
-            print(f"Socket {socket} is not responding anymore, closing connection")
+            _print(f"Socket {socket} não está respondendo")
+            self._write_log(f"Client in socket {socket} disconnected. Verified by heatbeat")
             socket.close()
-            
+
 
         threading.Timer(10, self.start_heartbeat, args=(socket,)).start()
 
     def send_ping(self, socket):
-        print("Sending ping to", socket)
         try:
             socket.sendmsg([bytes("ping", "utf-8")])
             return "ok"
         except BrokenPipeError as e:
-            print(e)
             return
 
 
     def start_ping_socket(self, port):
         try:
-            print("Connecting to port", port)
             ping_socket = socket.create_connection((self.HOST, port))
         except Exception as e:
-            print(f"Exception: {e}")
-            print(f"Could not connect to address {self.HOST}:{port}")
+            _print(f"Exception: {e}")
+            _print(f"Não foi possível conectar-se a {self.HOST}:{port}")
 
         self.start_heartbeat(ping_socket)
 
@@ -154,7 +159,7 @@ class Server:
         # Defines ping port
         data = conn.recv(1024).decode("utf-8").split(';')
         ping_port = data[0]
-        print("Ping port will be:", ping_port)
+        _print(f"Porta do socket de heatbeat será {ping_port}")
         threading.Thread(target=self.start_ping_socket, args=(ping_port,)).start()
 
     def _read_commands(self, conn, addr, sconn, saddr):
@@ -182,9 +187,9 @@ class Server:
             if not data:
                 break
 
-            print(f"Received: {data}")
+            _print(f"Data: {data}")
             msg = data.decode("utf-8").split(";")
-            print(f"Command: {msg}")
+            _print(f"Comando: {msg}")
 
             if msg[0] == "adduser":
                 resp = self._adduser(msg[1:])
@@ -219,7 +224,7 @@ class Server:
             else:
                 resp = ['Comando Não Reconhecido']
                 r_soc = conn
-            print(resp)
+            _print(f"resp:{resp}")
             r_soc.sendall(bytes(";".join(resp),"utf-8"))
 
     # Message related methods
@@ -228,25 +233,25 @@ class Server:
         return ["exitACK"]
 
     def disconnect(self):
-        print("Closing socket")
+        _print("Fechando socket")
         self.socket.close()
 
     def log_user(self, username):
-        print(f"Login in user: {username}")
+        _print(f"Usuário {username} logando")
         Server.logged_users[username] = self.get_socket()
 
     def logout_user(self):
-        print(f"Login out user: {self.get_uname()}")
+        _print(f"Deslogando {self.get_uname()}")
         del Server.logged_users[self.get_uname()]
         return ["logoutACK"]
 
 
     def invite_user(self, u_socket, sender):
-        print(f"inviting user in connection: {u_socket}")
+        _print(f"Convidando {u_socket} para conexão")
         u_socket.sendmsg([bytes(f"invite;{sender}","utf-8")])
 
     def answer_user(self, u_socket, accept, sender_name, ping_port, sender_port=None):
-        print(f"Answering user in connection: {u_socket}")
+        _print(f"Respondendo usuário no socket: {u_socket}")
         receiver_name = self.get_uname()
         receiver_conn = Server.logged_users[receiver_name].getpeername()
         sender_conn = Server.logged_users[sender_name].getpeername()
@@ -264,7 +269,7 @@ class Server:
     def _answer(self, args):
         """Relays answer to game invitation"""
         if len(args) < 2:
-            print("answer requires at least 2 arguments")
+            _print("answer precisa de 2 argumentos")
             return ["answerERR", "Wrong Number of Arguments"]
 
         user_to_answer, accept = args[:2]
@@ -273,7 +278,7 @@ class Server:
         else:
             sender_port = sender_user_name = ping_port = None
 
-        print("USERNAMES:", Server.logged_users)
+        _print("Usernames:", Server.logged_users)
         if user_to_answer in Server.logged_users:
             self.answer_user(Server.logged_users[user_to_answer], accept, sender_user_name, ping_port, sender_port)
             return ["answerACK"]
@@ -283,7 +288,7 @@ class Server:
     def _begin(self, args):
         """Invites another user and waits for response."""
         if len(args) != 2:
-            print("begin requires 1 argument")
+            _print("Begin precisa de 2 argumentos")
             return ["beginERR", "Wrong Number of Arguments"]
 
         invited_user = args[0]
@@ -292,7 +297,7 @@ class Server:
         if Server.current_matches.get(sender_user) is not None:
             return ["beginERR", "Inviting User currently in a match"]
 
-        print(f"{sender_user} is inviting {invited_user}")
+        _print(f"{sender_user} está convidando {invited_user}")
         if invited_user in Server.logged_users:
             if Server.current_matches.get(invited_user) is not None:
                 return ["beginERR", "Invited user currently in a match"]
@@ -313,12 +318,12 @@ class Server:
             for line in handle.readlines():
                 username, _, score = line.strip().split("\t")
                 resp.append(f"{username}:{score}")
-        print("resp:",resp)
+        _print(f"Resp: {resp}")
         return resp
 
     def _login(self, args, addr):
         if len(args) != 2:
-            print("login requires 2 arguments")
+            _print("login precisa de 2 argumentos")
             return ["loginERR", "Wrong Number of Arguments"]
 
         username, passwd = args
@@ -345,7 +350,7 @@ class Server:
 
     def _adduser(self, args):
         if len(args) != 2:
-            print("adduser requires 2 arguments")
+            _print("adduser precisa de 2 argumentos")
             return ["adduserERR", "Wrong Number of Arguments"]
 
         new_username = args[0]
@@ -360,7 +365,7 @@ class Server:
             user_names.append(entry.split('\t')[0])
 
         if new_username in user_names:
-            print("Usuário já cadastrado.\n")
+            _print("Usuário já cadastrado.\n")
             return ["adduserERR", "USEREXISTS"]
 
         users.append("\t".join(args) + '\t0\n')
@@ -375,7 +380,7 @@ class Server:
 
     def _passwd(self, args):
         if len(args) != 3:
-            print("passwd requires 3 arguments")
+            _print("passwd precisa de 3 argumentos")
             return ["passwdERR", "Wrong Number of Arguments"]
 
         user, old_password, new_password = msg
@@ -405,7 +410,7 @@ class Server:
     def _result(self, args):
         if len(args) < 3:
             return ["resultERR","Wrong Number of Arguments"]
-        
+
         user1, user2, user1_win = args
         winner = user1 if user1_win == "WIN" else user2
         reported_winner = Server.reported_results.get((user1,user2))
@@ -413,17 +418,17 @@ class Server:
             Server.reported_results[(user1,user2)] = winner
             Server.reported_results[(user2,user1)] = winner
             return ["resultACK"]
-        
+
         if reported_winner == winner:
             del Server.reported_results[(user2,user1)]
             del Server.reported_results[(user1,user2)]
             self._increase_score(winner)
             return ["resultACK"]
-        
+
         # Users disagree with result
 
         other_user = user1 if user2 == self.get_uname() else user2
-        
+
         # tries to contact other user as well
         if other_user in Server.logged_users:
             soc = Server.logged_users[other_user].getpeername()
@@ -437,7 +442,7 @@ class Server:
     def _increase_score(self, username):
         with open(Server.USERSF) as handle:
             lines = handle.readlines()
-        
+
         for index, line in enumerate(lines):
             line_array = line.replace('\n', '').split("\t")
 
@@ -459,11 +464,11 @@ class Server:
     def set_uname(self, username):
         """Sets username associated with current thread"""
         Server.t_usernames[threading.get_ident()] = username
-        print(f"t_usernames:", Server.t_usernames)
+        _print(f"t_usernames: {Server.t_usernames}")
 
     def get_socket(self):
         """Returns current thread associated socket or None"""
-        print("THREADING IDENT:", threading.get_ident())
+        _print(f"THREADING IDENT: {threading.get_ident()}")
         return Server.t_sockets.get(threading.get_ident())
 
     def set_socket(self, socket):
@@ -480,7 +485,7 @@ class Server:
 
     def get_ssl_socket(self):
         """Returns current thread associated ssl socket or None"""
-        print("THREADING IDENT:", threading.get_ident())
+        _print(f"THREADING IDENT: {threading.get_ident()}")
         return Server.t_ssl_sockets.get(threading.get_ident())
 
     def set_ssl_socket(self, socket):
