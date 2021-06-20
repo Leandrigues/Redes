@@ -102,7 +102,7 @@ class Client:
                 resp = self.socket.recv(1024).decode("utf-8")
 
                 leaderboard = [[s for s in u.split(":")] for u in resp.split(";")[1:]]
-                leaderboard.sort(key=lambda x: int(x[1]))
+                leaderboard.sort(key=lambda x: int(x[1]),reverse=True)
 
                 print("-"*21 + 
                       f"\n{'LEADERBOARD':^20}\n" +
@@ -124,6 +124,8 @@ class Client:
         while True:
             cmd = input(">").strip().split(" ")
             if cmd[0] == "send":
+                if len(cmd) < 3:
+                    return ["send"]
                 return ["send", cmd[1], cmd[2]]
 
             if cmd[0] == "delay":
@@ -164,6 +166,8 @@ class Client:
                 self.buffer = "pong"
             else:
                 print("Unexpected data:", data)
+                print("Closing connection.")
+                soc.close()
 
 
     def game_command_loop(self, soc : socket.socket, ping_socket, opponent:str, first_move=True):
@@ -192,7 +196,7 @@ class Client:
                     if len(cmd) < 2:
                         print("Digite:\n> linha coluna")
                         continue
-                    p_x, p_y = cmd
+                    p_x, p_y = cmd[1:]
                     if jogo.pode_jogar(int(p_x), int(p_y)):
                         jogo.faz_jogada(int(p_x), int(p_y), self._my_simb)
                         self._send_play(p_x, p_y, soc)
@@ -214,13 +218,13 @@ class Client:
             print(jogo)
             turns += 1
 
-        if jogo.terminou() == self._my_simb:
+        if jogo.terminou() != self._my_simb:
             print(f"Você perdeu o jogo contra {opponent}! X(")
-            self.socket.sendmsg([bytes(f"result;{self.user_name};{opponent};LOST")])
+            self.socket.sendmsg([bytes(f"result;{self.user_name};{opponent};LOST","utf-8")])
         else:
             print(f"Você ganhou o jogo contra {opponent}! :D")
-            self.socket.sendmsg([bytes(f"result;{self.user_name};{opponent};WIN")])
-
+            self.socket.sendmsg([bytes(f"result;{self.user_name};{opponent};WIN","utf-8")])
+        
         self._listen_resultACK()
         print("Saiu game_command_loop")
 
@@ -271,8 +275,10 @@ class Client:
                     self.socket.sendmsg([
                         bytes(f"answer;{user};True;{match_port};{self.user_name};{ping_port}", "utf-8")
                     ])
-
                     print("Resposta enviada; Esperando conexão.")
+
+                    if self._listen_answerACK() is not None:
+                        return
 
                     self._match_socket.settimeout(Client.MATCHTIMEOUT)
                     try:
@@ -388,9 +394,19 @@ class Client:
         print(resp)
         if resp[0] == "beginACK":
             print("Begin bem sucedido!")
-            # self.user_name = resp[1]
         else:
             print(f"begin failed, reason: {resp[1]}")
+
+    def _listen_answerACK(self):
+        resp = self.socket.recv(1024).decode("utf-8").split(";")
+        print(resp)
+        if resp[0] == "answerACK":
+            print("Answer bem sucedido!")
+            return
+        else:
+            print(f"Answer failed, reason: {resp[1]}")
+            return 1
+
 
     def _listen_loginACK(self, soc):
         resp = soc.recv(1024).decode("utf-8").split(";")

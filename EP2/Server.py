@@ -224,9 +224,10 @@ class Server:
             return ["answerERR", "Wrong Number of Arguments"]
 
         user_to_answer, accept = args[:2]
-        sender_port = args[2] if len(args) > 2 else None
-        sender_user_name = args[3]
-        ping_port = args[4]
+        if len(args) > 2:
+            sender_port, sender_user_name, ping_port = args[2:]
+        else:
+            sender_port = sender_user_name = ping_port = None
 
         print("USERNAMES:", Server.logged_users)
         if user_to_answer in Server.logged_users:
@@ -397,7 +398,7 @@ class Server:
             line_array = line.replace('\n', '').split("\t")
 
             if line_array[0] == username:
-                    new_line = f"{username}\t{line_array[1]}\t{line_array[2]+1}\n"
+                    new_line = f"{username}\t{line_array[1]}\t{int(line_array[2])+1}\n"
                     lines[index] = new_line
                     break
 
