@@ -115,19 +115,30 @@ class Server:
             self._read_commands(conn, addr, sconn, saddr)
 
     def start_heartbeat(self, socket):
-        self.send_ping(socket)
+        if self.send_ping(socket) is None:
+            return
         socket.settimeout(3)
         try:
             data = socket.recv(1024).decode("utf-8")
-            print(f"HEARTBEAT: Received {data}")
-        except socket.timeout as e:
-            print("Timeout in heartbeat")
+            if data != "pong":
+                return
+        except Exception as e:
+            print(e)
+            print(f"Socket {socket} is not responding anymore, closing connection")
+            socket.close()
+            
 
         threading.Timer(10, self.start_heartbeat, args=(socket,)).start()
 
     def send_ping(self, socket):
-        print("Sending ping")
-        socket.sendmsg([bytes("ping", "utf-8")])
+        print("Sending ping to", socket)
+        try:
+            socket.sendmsg([bytes("ping", "utf-8")])
+            return "ok"
+        except BrokenPipeError as e:
+            print(e)
+            return
+
 
     def start_ping_socket(self, port):
         try:

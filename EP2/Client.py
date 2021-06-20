@@ -48,9 +48,13 @@ class Client:
         if self.conn_ping is None:
             print("CONN PING IS NONE")
             exit(0)
-        self._read_pings(self.conn_ping)
-        # data = self.conn_ping.recv(1024).decode("utf-8")
-        # print(f"Received {data} in ping socket")
+        self._read_heartbeat(self.conn_ping)
+
+    def _read_heartbeat(self, soc):
+        while True:
+            data = soc.recv(1024).decode("utf-8")
+            if data == "ping":
+                soc.sendmsg([bytes("pong", "utf-8")])
 
 
     def connect(self, port, ip, show_err = True) -> socket.socket:
@@ -182,7 +186,7 @@ class Client:
         while True:
             data = soc.recv(1024).decode("utf-8")
             if data == "ping":
-                print("Received a ping")
+                # print("Received a ping")
                 soc.sendmsg([bytes("pong", "utf-8")])
             elif data == "pong":
                 # print("Received a pong")
@@ -361,9 +365,6 @@ class Client:
                 self.socket.close()
                 exit(1)
 
-            elif msg[0] == "ping":
-               print("Received a ping!")
-                
     # Mensagens
     def _send_play(self, p_x, p_y, soc):
         soc.sendmsg([bytes(
