@@ -216,7 +216,8 @@ class Server:
                 resp = self._result(msg[1:])
                 r_soc = conn
             elif msg[0] == "exit":
-                resp = self.disconnect_user(addr)
+                print("Received exit from ", addr)
+                resp = self.disconnect_user(addr, conn)
                 break
             elif msg[0] == "logout":
                 resp = self.logout_user()
@@ -228,8 +229,9 @@ class Server:
             r_soc.sendall(bytes(";".join(resp),"utf-8"))
 
     # Message related methods
-    def disconnect_user(self, addr):
+    def disconnect_user(self, addr, soc):
         self._write_log(f"User from ip {addr[1]} disconnected")
+        soc.close()
         return ["exitACK"]
 
     def disconnect(self):

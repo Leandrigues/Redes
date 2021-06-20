@@ -1,6 +1,7 @@
 import socket
 import time
 import threading
+import signal
 from random import randint
 from Jogo import Jogo
 from ssl import SSLContext, PROTOCOL_TLS_CLIENT
@@ -30,16 +31,24 @@ class Client:
 
         hostname="jogo-da-velha-server"
         self.socket = self.connect(port,ip)
-        threading.Thread(target=self.start_ping).start()
+        th = threading.Thread(target=self.start_ping)
+        th.daemon = True
+        th.start()
         self.server_ip = ip
         self.server_port = port
+        # await for secure port
+        signal.signal(signal.SIGINT, self._signal_handler)
 
-        #await for secure port
         self.s_port = int(self.socket.recv(100).decode("utf-8").split(";")[1])
         ssoc = self.connect(self.s_port,ip)
         with context.wrap_socket(ssoc, server_hostname=hostname) as tls:
-
             self.server_command_loop(self.socket, tls)
+
+    def _signal_handler(self, sig, frame):
+        print("Finalizando cliente")
+        self.socket.sendmsg([bytes("exit", "utf-8")])
+        self.socket.close()
+        exit(0)
 
     def start_ping(self):
         _print("Iniciando socket de ping")
@@ -208,8 +217,12 @@ class Client:
         jogo = Jogo()
 
         # Inicia a medição periódica de latência
-        threading.Thread(target=self._read_pings, args=(ping_socket,)).start()
-        threading.Thread(target=self._get_delay, args=(ping_socket,)).start()
+        th1 = threading.Thread(target=self._read_pings, args=(ping_socket,))
+        th1.daemon = True
+        th1.start()
+        th2 = threading.Thread(target=self._get_delay, args=(ping_socket,))
+        th2.daemon = True
+        th2.start()
 
         # Se não é o primeiro jogador, espera a primeira jogada.
         turns = 0 if first_move else 1
