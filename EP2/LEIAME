@@ -28,8 +28,10 @@ Caso uma não seja especificada, a porta 3000 será utilizada.
 ### Execução de um cliente:
 
 ```
-python3 start_client.py
+python3 start_client.py <porta>
 ```
+
+Caso uma não seja especificada, a porta 3000 será utilizada.
 
 #### Geração de credenciais
 
