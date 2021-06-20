@@ -88,7 +88,7 @@ class Client:
             self._listen_messages()
             cmd = input(">").split(" ")
 
-            if not cmd: # Empty string
+            if not cmd[0]: # Empty string
                 continue
             _print(f"cmd: {cmd}")
 
@@ -214,6 +214,9 @@ class Client:
         # Se não é o primeiro jogador, espera a primeira jogada.
         turns = 0 if first_move else 1
 
+        print("\n"*10+"Jogo iniciado!")
+        print(jogo)
+
         while jogo.terminou() is None:
             if turns % 2: # turnos pares, minha jogada
                 jogou = False
@@ -293,7 +296,7 @@ class Client:
             if msg[0] == "invite":
                 # TODO: add validation here
                 user = msg[1]
-                _print(f"{user} te convidou para jogar!")
+                print(f"{user} te convidou para jogar!")
                 accept = input("Aceitar?\n[S/n]: ")
                 if accept == "S":
                     _print(f"Iniciando conexão com {user}")
@@ -413,7 +416,7 @@ class Client:
     # Respostas
     def _listen_beginACK(self):
         resp = self.socket.recv(1024).decode("utf-8").split(";")
-        print(resp)
+        _print(resp)
         if resp[0] == "beginACK":
             print("Begin bem sucedido!")
         else:

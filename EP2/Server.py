@@ -105,7 +105,7 @@ class Server:
 
         #Setup secure connection
         ssoc = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-        p = self._bind_port(self._server_port+1, ssoc, False)
+        p = self._bind_port(int(self._server_port)+1, ssoc, False)
 
         # Await for client to connect through ssl
         conn.sendmsg([bytes(f"secport;{p}","utf-8")])
