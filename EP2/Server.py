@@ -39,6 +39,10 @@ class Server:
     # user : (user, matched_user)
     current_matches = {}
 
+    # Keeps matches that were only reported by a single user
+    # (user1, user2) : winner
+    reported_results = {}
+
     def __init__(self):
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         # force creation of user file
@@ -158,6 +162,9 @@ class Server:
                 r_soc = conn
             elif msg[0] == "answer":
                 resp = self._answer(msg[1:])
+                r_soc = conn
+            elif msg[0] == "result":
+                resp = self._result(msg[1:])
                 r_soc = conn
             elif msg[0] == "exit":
                 resp = self.disconnect_user(addr)
@@ -350,10 +357,55 @@ class Server:
 
         return ["passwdACK"]
 
+    def _result(self, args):
+        if len(args) < 3:
+            return ["resultERR","Wrong Number of Arguments"]
+        
+        user1, user2, user1_win = args
+        winner = user1 if user1_win == "WIN" else user2
+        reported_winner = Server.reported_results.get((user1,user2))
+        if reported_winner is None:
+            Server.reported_results[(user1,user2)] = winner
+            Server.reported_results[(user2,user1)] = winner
+            return ["resultACK"]
+        
+        if reported_winner == winner:
+            del Server.reported_results[(user2,user1)]
+            del Server.reported_results[(user1,user2)]
+            self._increase_score(winner)
+            return ["resultACK"]
+        
+        # Users disagree with result
+
+        other_user = user1 if user2 == self.get_uname() else user2
+        
+        # tries to contact other user as well
+        if other_user in Server.logged_users:
+            soc = Server.logged_users[other_user].getpeername()
+            soc.sendall(bytes(
+                f"resultERR;Conflicting reports of match result with {self.get_uname()}",
+                "utf-8"))
+
+        return ["resultERR","Conflicting reports of match result"]
+    # util methods:
+
+    def _increase_score(self, username):
+        with open(Server.USERSF) as handle:
+            lines = handle.readlines()
+        
+        for index, line in enumerate(lines):
+            line_array = line.replace('\n', '').split("\t")
+
+            if line_array[0] == username:
+                    new_line = f"{username}\t{line_array[1]}\t{line_array[2]+1}\n"
+                    lines[index] = new_line
+                    break
+
+        with open(Server.USERSF, "w") as file:
+            file.writelines(lines)
+
     def _get_formated_time(self):
         return f"[{datetime.now().strftime('%Y-%m-%d %H:%M:%S')}]"
-
-    # util methods:
 
     def get_uname(self):
         """Returns current thread associated Username or None"""
