@@ -1,0 +1,123 @@
+\documentclass[12pt,letterpaper]{article}
+\usepackage[brazil]{babel}
+\usepackage[utf8]{inputenc}
+\usepackage{graphicx}
+\usepackage{times}
+\usepackage{url}
+\usepackage{algorithm}
+\usepackage{algorithmic}
+\usepackage[bottom=2cm,top=2cm,left=2cm,right=2cm]{geometry}
+
+\title{Relatório do EP3\\MAC0352 -- Redes de Computadores e Sistemas Distribuídos -- 1/2021}
+\author{$<$Aluno$>$ ($<$NUSP$>$)}
+\date{}
+
+\begin{document}
+\maketitle
+
+\section{Passo 0}
+
+Na definição do protocolo OpenFlow, o que um switch faz toda vez que
+ele recebe um pacote que ele nunca recebeu antes?
+
+
+\section{Passo 2}
+
+
+Com o acesso à Internet funcionando em sua rede local, instale na VM o
+programa \texttt{traceroute} usando \texttt{sudo apt install
+traceroute} e escreva abaixo a saída do comando \texttt{sudo
+traceroute -I www.inria.fr}. Pela saída do comando, a partir de qual
+salto os pacotes alcançaram um roteador na Europa? Como você chegou a
+essa conclusão?
+
+\begin{verbatim}
+<substitua este conteúdo entre < e > pela saída do traceroute>
+<...>
+<Obs.: Sempre que for colocar saídas de comandos no relatório, ponha
+dentro de um ambiente verbatim como neste exemplo.>
+\end{verbatim}
+
+\section{Passo 3 - Parte 1}
+
+
+Execute o comando \texttt{iperf}, conforme descrito no tutorial, antes
+de usar a opção \texttt{--switch user}, 5 vezes.  Escreva abaixo o
+valor médio e o intervalo de confiança da taxa retornada (considere
+sempre o primeiro valor do vetor retornado).
+
+
+\section{Passo 3 - Parte 2}
+
+
+Execute o comando \texttt{iperf}, conforme descrito no tutorial, com a
+opção \texttt{--switch user}, 5 vezes. Escreva abaixo o valor médio e
+o intervalo de confiança da taxa retornada (considere sempre o
+primeiro valor do vetor retornado). O resultado agora corresponde a
+quantas vezes menos o da Seção anterior? Qual o motivo dessa
+diferença?
+
+
+\section{Passo 4 - Parte 1}
+
+
+Execute o comando \texttt{iperf}, conforme descrito no tutorial,
+usando o controlador \texttt{of\_tutorial.py} original sem
+modificação, 5 vezes. Escreva abaixo o valor médio e o intervalo de
+confiança da taxa retornada (considere sempre o primeiro valor do
+vetor retornado). O resultado agora corresponde a quantas vezes menos
+o da Seção 3? Qual o motivo para essa diferença? Use a saída do
+comando \texttt{tcpdump}, deixando claro em quais computadores
+virtuais ele foi executado, para justificar a sua resposta.
+
+
+\section{Passo 4 - Parte 2}
+
+
+Execute o comando \texttt{iperf}, conforme descrito no tutorial,
+usando o seu controlador \texttt{switch.py}, 5 vezes.  Escreva abaixo
+o valor médio e o intervalo de confiança da taxa retornada (considere
+sempre o primeiro valor do vetor retornado). O resultado agora
+corresponde a quantas vezes mais o da Seção anterior?  Qual o motivo
+dessa diferença? Use a saída do comando \texttt{tcpdump}, deixando
+claro em quais computadores virtuais ele foi executado, para
+justificar a sua resposta.
+
+
+\section{Passo 4 - Parte 3}
+
+
+Execute o comando \texttt{iperf}, conforme descrito no tutorial,
+usando o seu controlador \texttt{switch.py} melhorado, 5 vezes.
+Escreva abaixo o valor médio e o intervalo de confiança da taxa
+retornada (considere sempre o primeiro valor do vetor retornado). O
+resultado agora corresponde a quantas vezes mais o da Seção anterior?
+Qual o motivo dessa diferença? Use a saída do comando
+\texttt{tcpdump}, deixando claro em quais computadores virtuais ele
+foi executado, e saídas do comando \texttt{sudo ovs-ofctl}, com os
+devidos parâmetros, para justificar a sua resposta.
+
+
+\section{Passo 5}
+
+
+Explique a lógica implementada no seu controlador
+\texttt{firewall.py} e mostre saídas de comandos que comprovem que ele
+está de fato funcionando (saídas dos comandos \texttt{tcpdump},
+\texttt{sudo ovs-ofctl}, \texttt{nc}, \texttt{iperf} e \texttt{telnet}
+são recomendadas)
+
+
+\section{Configuração dos computadores virtual e real usados nas
+medições (se foi usado mais de um, especifique qual passo foi feito
+com cada um)}
+
+\section{Referências}
+
+\begin{itemize}
+   \item
+   \item
+   % \item (Coloque quantos itens forem necessários)
+\end{itemize}
+
+\end{document}
