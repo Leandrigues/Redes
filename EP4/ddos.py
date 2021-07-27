@@ -1,15 +1,17 @@
-from subprocess import Popen
 import time
+import paho.mqtt.client as mqtt
+from tqdm import tqdm
+import subprocess
+import sys
 
 def bootstrap():
-  procs = []
-  for i in range(100):
-    p = Popen('mosquitto_sub -V mqttv5 -t "topic" -k 10000', shell=True)
-    procs.append(p)
-    print(f"{i}: {p}")
+  keep_alive = 5000
 
-  time.sleep(40)
-  for p in procs:
-    p.kill()
+  for i in range(100):
+    print(f'Executando o client {i} with keep-alive', keep_alive)
+    client = mqtt.Client(f'client{i}', protocol=mqtt.MQTTv5)
+    client.connect('0.0.0.0', 1883, keep_alive)
+
+  time.sleep(120)
 
 bootstrap()
