@@ -7,8 +7,6 @@ def ddos():
   keep_alive = 500
   n_clients = 20
   print(f'Inicializando {n_clients} MQTT com keep-alive {keep_alive}')
-  clients = []
-  print(sys.argv[1])
 
   # Cria e conecta os clientes
   for i in range(n_clients):
